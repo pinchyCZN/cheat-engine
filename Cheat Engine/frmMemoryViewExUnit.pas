@@ -8,7 +8,7 @@ uses
   windows, Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Dialogs,
   ExtCtrls, StdCtrls, ComCtrls, Menus, memdisplay, newkernelhandler, cefuncproc,
   syncobjs, math, savedscanhandler, foundlisthelper, CustomTypeHandler,
-  symbolhandler, inputboxtopunit, commonTypeDefs, GL, GLext;
+  symbolhandler, inputboxtopunit, commonTypeDefs, GL, GLext, Types;
 
 
 type TMVCompareMethod=(cmOr, cmXor, cmAnd);
@@ -55,22 +55,22 @@ type
     cbType: TComboBox;
     cbCompare: TCheckBox;
     cbSavedList: TComboBox;
+    edtAddress: TEdit;
     edtPitch: TEdit;
     Label1: TLabel;
     Label2: TLabel;
     Label3: TLabel;
+    lblZOOM: TLabel;
     lblAddress: TLabel;
-    MenuItem1: TMenuItem;
     Panel1: TPanel;
     Panel2: TPanel;
     Panel3: TPanel;
     Panel4: TPanel;
-    pmMemview: TPopupMenu;
     rbAnd: TRadioButton;
     rbOr: TRadioButton;
     rbXor: TRadioButton;
     tbPitch: TTrackBar;
-    Timer1: TTimer;
+    tbZoom: TTrackBar;
     procedure cbAddresslistChange(Sender: TObject);
     procedure cbAddresslistOnlyChange(Sender: TObject);
     procedure cbAddresslistDropDown(Sender: TObject);
@@ -78,42 +78,42 @@ type
     procedure cbSavedListChange(Sender: TObject);
     procedure cbColorChange(Sender: TObject);
     procedure cbTypeChange(Sender: TObject);
+    procedure edtAddressKeyDown(Sender: TObject; var Key: Word;
+      Shift: TShiftState);
 
     procedure edtPitchChange(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
-    procedure MenuItem1Click(Sender: TObject);
-    procedure Panel1DblClick(Sender: TObject);
-    procedure Timer1Timer(Sender: TObject);
     procedure tbPitchChange(Sender: TObject);
+    procedure tbZoomChange(Sender: TObject);
+
+    Procedure mdMouseDown(Sender:Tobject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure mdMouseMove(Sender:Tobject;Shift: TShiftState; X, Y: Integer);
+    procedure mdMouseUp(Sender:Tobject;Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+    procedure mdMouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; MousePos: TPoint; var Handled: Boolean);
+    procedure mdRecenterDrag;
   private
-    { private declarations }
     buf: pbytearray;
     bufsize: integer;
     datasource: TMemoryDataSource;
     history: TStringList;
 
+    procedure Panel1DblClick(Sender: TObject);
     function getCompareMethod: TMVCompareMethod;
     function ondata(newAddress: ptruint; PreferedMinimumSize: integer; var newbase: pointer; var newsize: integer): boolean;
+    procedure UpdateZoomText(val:single);
+    procedure UpdateAddress(val:PtrUInt);
+    procedure UpdateZoomBar(val:single);
   public
-    { public declarations }
     md: TMemDisplay;
   end;
 
-var
-  frmMemoryViewEx: TfrmMemoryViewEx;
 
 implementation
 
 uses MemoryBrowserFormUnit, MainUnit, ProcessHandlerUnit;
 
 {$R *.lfm}
-
-resourcestring
-  rsGotoAddress = 'Goto Address';
-  rsFillInTheAddressYouWantToGoTo = 'Fill in the address you want to go to';
-  rsAddressZoom = 'Address : %s zoom : %s';
-
 
 { TMemoryDataSource }
 
@@ -326,13 +326,7 @@ end;
 
 { TfrmMemoryViewEx }
 function TfrmMemoryViewEx.ondata(newAddress: ptruint; PreferedMinimumSize: integer; var newbase: pointer; var newsize: integer): boolean;
-var x: dword;
 begin
-
-  //todo: Pre-buffer when going up. (allocate 4096 bytes in front, and give a pointer to 4096 bytes after. Only when the newaddress becomes smaller than the base realloc
-
-//  label1.caption:=inttohex(newaddress,8);
-
   datasource.lock;
   if bufsize<PreferedMinimumSize then
   begin
@@ -351,7 +345,6 @@ begin
   datasource.setRegion(newaddress, buf, bufsize);
   datasource.unlock;
 
-
   newbase:=buf;
   newsize:=bufsize;
   result:=newsize>=PreferedMinimumSize; //allow the move if allocated enough memory
@@ -366,6 +359,11 @@ begin
 
   md:=TMemDisplay.Create(self);
   md.onData:=ondata;
+  md.OnMouseDown:=mdMouseDown;
+  md.OnMouseUp:=mdMouseUp;
+  md.OnMouseMove:=mdMouseMove;
+  md.OnMouseWheel:=mdMouseWheel;
+  md.OnDblClick:=Panel1DblClick;
 
   getmem(buf,4096);
   bufsize:=4096;
@@ -374,24 +372,17 @@ begin
   md.setPointer(MemoryBrowser.hexview.Address and ptruint(not $FFF), buf, bufsize);
   md.Align:=alClient;
   md.parent:=panel1;
-  md.PopupMenu:=pmMemview;
-
-  md.OnDblClick:=Panel1DblClick;
-
-
 
   datasource.Start;
 end;
 
-procedure TfrmMemoryViewEx.edtPitchChange(Sender: TObject);
-var newpitch: integer;
+procedure TfrmMemoryViewEx.FormDestroy(Sender: TObject);
 begin
-  try
-    newpitch:=strtoint(edtpitch.Caption);
-    md.setPixelsPerLine(newpitch);
-    edtPitch.Font.Color:=clDefault;
-  except
-    edtPitch.Font.Color:=clred;
+  if datasource<>nil then
+  begin
+    datasource.Terminate;
+    datasource.WaitFor;
+    freeandnil(datasource);
   end;
 end;
 
@@ -451,7 +442,6 @@ begin
 end;
 
 procedure TfrmMemoryViewEx.cbColorChange(Sender: TObject);
-var i: integer;
 begin
   {
   Dithered (1 Byte/pixel)
@@ -460,7 +450,6 @@ begin
   RGBA (4 Bytes/Pixel)
   BGRA (4 Bytes/Pixel)
   }
-
   case cbcolor.itemindex of
     0: md.setFormat(GL_COLOR_INDEX);
     1: md.setFormat(GL_RGB);
@@ -517,49 +506,241 @@ begin
   end;
 end;
 
-procedure TfrmMemoryViewEx.FormDestroy(Sender: TObject);
-begin
-  if datasource<>nil then
-  begin
-    datasource.Terminate;
-    datasource.WaitFor;
-    freeandnil(datasource);
-  end;
-end;
-
-procedure TfrmMemoryViewEx.MenuItem1Click(Sender: TObject);
-var newaddress: string;
-    canceled: boolean;
-begin
-  newaddress:=inputboxtop(rsGotoAddress, rsFillInTheAddressYouWantToGoTo, IntTohex(md.getTopLeftAddress, 8), true, canceled, History);
-
-  if not canceled then
-  begin
-    md.MoveTo(0,0);
-    md.setPointer(symhandler.getAddressFromName(newaddress));
-  end;
-end;
-
 procedure TfrmMemoryViewEx.Panel1DblClick(Sender: TObject);
 var c: tpoint;
     address: ptruint;
 begin
   c:=md.ScreenToClient(mouse.cursorpos);
-
   address:=md.getAddressFromScreenPosition(c.x, c.y);
-
   MemoryBrowser.hexview.Address:=address;
   MemoryBrowser.show;
 end;
 
-procedure TfrmMemoryViewEx.Timer1Timer(Sender: TObject);
+procedure TfrmMemoryViewEx.edtPitchChange(Sender: TObject);
+var newpitch: integer;
 begin
-  lbladdress.caption:=Format(rsAddressZoom, [inttohex(md.getTopLeftAddress, 8), floattostr(md.zoom)]);
+  try
+    newpitch:=strtoint(edtpitch.Caption);
+    md.setPitch(newpitch);
+    edtPitch.Font.Color:=clDefault;
+    if(md.fPitch <> newpitch)then
+    begin
+      edtPitch.OnChange:=nil;
+      edtPitch.Caption:=IntToStr(md.fPitch);
+      edtPitch.OnChange:=edtPitchChange;
+    end;
+    md.render;
+  except
+    edtPitch.Font.Color:=clred;
+  end;
 end;
 
 procedure TfrmMemoryViewEx.tbPitchChange(Sender: TObject);
 begin
-  edtPitch.caption:=inttostr(tbPitch.position);//inttostr(trunc(2**tbPitch.position));
+  edtPitch.OnChange:=nil;
+  edtPitch.caption:=inttostr(tbPitch.position);
+  edtPitch.OnChange:=edtPitchChange;
+  md.setPitch(tbPitch.position);
+  md.render;
+end;
+
+procedure TfrmMemoryViewEx.UpdateZoomText(val:single);
+begin
+  lblZOOM.Caption:=Format('Zoom:%f',[val]);
+end;
+
+procedure TfrmMemoryViewEx.UpdateZoomBar(val:single);
+var i:integer;
+begin
+  if(val<1)then
+  begin
+    i:=Round(val*256);
+    tbZoom.Position:=i
+  end
+  else
+  begin
+    i:=Round(val+256);
+    tbZoom.Position:=i;
+  end;
+end;
+
+procedure TfrmMemoryViewEx.tbZoomChange(Sender: TObject);
+var i:integer;
+    tmp:single;
+begin
+    i:=tbZoom.Position;
+    if(i>256)then
+    begin
+        i:=i-256;
+        md.zoom:=i;
+    end
+    else
+    begin
+        tmp:=i;
+        tmp:=tmp/256.0;
+        md.zoom:=tmp;
+    end;
+    UpdateZoomText(md.zoom);
+    md.render;
+end;
+
+procedure TfrmMemoryViewEx.UpdateAddress(val:PtrUInt);
+begin
+  edtAddress.Caption:=Format('%.8X',[val]);
+end;
+
+procedure TfrmMemoryViewEx.edtAddressKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+var val:PtrUInt;
+begin
+  if(key=VK_RETURN)then
+  begin
+    md.MoveTo(0,0);
+    val:=symhandler.getAddressFromName(edtAddress.Text);
+    md.setPointer(val);
+    if(md.address<>val)then
+        UpdateAddress(val);
+  end;
+end;
+
+Procedure TfrmMemoryViewEx.mdMouseDown(Sender:Tobject;Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  if button=mbleft then
+  begin
+    md.isDragging:=true;
+    md.DragOrigin.x:=x;
+    md.DragOrigin.y:=y;
+    md.PosOrigin.x:=md.fXpos;
+    md.PosOrigin.y:=md.fYpos;
+
+    md.dragaddress:=ssCtrl in shift;
+    if(md.dragAddress)then
+      md.addressOrigin:=md.address;
+    UpdateAddress(md.address);
+  end;
+end;
+
+procedure TfrmMemoryViewEx.mdMouseMove(Sender:Tobject;Shift: TShiftState; X, Y: Integer);
+var a: ptruint;
+  newp: pointer;
+  newsize: integer;
+begin
+  if(md.isDragging)then
+  begin
+    with md do
+    begin
+      if(dragaddress)then
+      begin
+        //move the address by the difference in X position
+        a:=addressOrigin-trunc((PosOrigin.x-(DragOrigin.x-x))/zoom)*fPixelByteSize;
+        if assigned(fOnData) and fOnData(a,size,newp,newsize) then
+        begin
+          address:=a;
+          p:=newp;
+          size:=newsize;
+          LimitCoordinates; //recheck with the new ypos. (in case of size change (end of buf?))
+          UpdateAddress(address);
+        end;
+        render;
+      end
+      else
+        MoveTo(PosOrigin.x-(DragOrigin.x-x), PosOrigin.y+(DragOrigin.y-y));
+    end;
+  end;
+end;
+
+procedure TfrmMemoryViewEx.mdMouseUp(Sender:Tobject;Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+begin
+  if button=mbleft then
+    md.isDragging:=false;
+
+  //todo: Add a pixel click event handler
+
+  md.render;
+end;
+
+procedure TfrmMemoryViewEx.mdMouseWheel(Sender: TObject; Shift: TShiftState;
+                                                WheelDelta: Integer;
+                                                MousePos: TPoint;
+                                                var Handled: Boolean);
+var oldx, oldy: single;
+  tmp:ptruint;
+  val:integer;
+begin
+  with md do
+  begin
+  if(ssctrl in Shift)then
+  begin
+    oldx:=(-fXpos+(MousePos.x))/fZoom;
+    oldy:=(fYpos+(MousePos.y))/fZoom;
+    if WheelDelta>0 then
+    begin
+      if fzoom<256 then
+      begin
+        //zoom in
+        //get the pixel at center of the screen
+
+        if ssShift in Shift then
+          fZoom:=fZoom * 1.2
+        else
+          fZoom:=fZoom * 2;
+
+        fXpos:=trunc(-oldx*fZoom+(MousePos.x));
+        fypos:=trunc(oldy*fZoom-(MousePos.y));
+      end;
+    end
+    else if WheelDelta<0 then
+    begin
+      if fZoom>0.2 then
+      begin
+        //zoom out
+        if ssShift in Shift then
+          fZoom:=fZoom / 1.2
+        else
+          fZoom:=fZoom / 2;
+
+        fXpos:=trunc(-oldx*fZoom+(MousePos.x));
+        fypos:=trunc(oldy*fZoom-(MousePos.y));
+      end;
+    end;
+    UpdateZoomText(fZoom);
+    UpdateZoomBar(fZoom);
+  end
+  else if(ssshift in Shift)then
+  begin
+    val:=1;
+    if(ssRight in shift)then
+        val:=10;
+    if(WheelDelta<0)then
+        setPitch(fPitch-(val*fPixelByteSize))
+    else
+        setPitch(fPitch+(val*fPixelByteSize));
+    edtPitch.Caption:=IntToStr(fPitch);
+    tbPitch.Position:=fPitch;
+  end
+  else
+  begin
+    tmp:=address+WheelDelta*fPitch*fPixelByteSize;
+    address:=tmp;
+    UpdateAddress(address);
+  end;
+
+
+  LimitCoordinates;
+  setupFont;
+  render;
+  end;
+end;
+
+procedure TfrmMemoryViewEx.mdRecenterDrag;
+var p: tpoint;
+begin
+  if(md.isDragging)then
+  begin
+    p:=self.ScreenToClient(mouse.cursorpos);
+
+    mdMouseDown(self,mbLeft, [], p.x, p.y);
+  end;
 end;
 
 end.
