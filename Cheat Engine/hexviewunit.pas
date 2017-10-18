@@ -156,6 +156,7 @@ type
 
     procedure lineUp(sender: tobject);
     procedure lineDown(sender: TObject);
+    procedure hexupdate;
 
   protected
     procedure KeyDown(var Key: Word; Shift: TShiftState); override;
@@ -169,7 +170,7 @@ type
     procedure GetSelectionRange(var start: ptruint; var stop: ptruint);
     procedure PasteFromClipboard;
 
-    procedure hexupdate;
+    procedure UpdateView;
     procedure changeSelected;
     procedure AddSelectedAddressToCheatTable;
     function getAddressFromCurrentMousePosition(var region: THexRegion): ptrUint;
@@ -1969,7 +1970,7 @@ begin
 
 
   itemnr:=0;
-
+  selectedcharsize:=1;
   if isEditing then
   begin
     case CharEncoding of
@@ -2249,6 +2250,11 @@ begin
 
   if (oldsizex<>bytesperline) or (oldsizey<>totallines) then
     hexupdate;
+end;
+
+procedure THexView.UpdateView;
+begin
+  hexupdate;
 end;
 
 procedure THexView.hexupdate;

@@ -850,6 +850,7 @@ var
 
   esde: TExtraSymbolDataEntry;
 begin
+  result:=false;
   {$IFNDEF UNIX}
   if pSymInfo.NameLen=0 then
     exit(false);
@@ -3799,7 +3800,8 @@ var
 begin
   result:=false;
   tokenize(s, tokens);
-
+  err:=true;
+  t2start:=0;
   //first find the first part
   s1:='';
   for i:=0 to length(tokens)-2 do

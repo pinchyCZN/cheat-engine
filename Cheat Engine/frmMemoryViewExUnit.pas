@@ -84,6 +84,7 @@ type
     procedure edtPitchChange(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
+    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure tbPitchChange(Sender: TObject);
     procedure tbZoomChange(Sender: TObject);
 
@@ -97,7 +98,7 @@ type
     bufsize: integer;
     datasource: TMemoryDataSource;
     history: TStringList;
-
+    showing_help:boolean;
     procedure Panel1DblClick(Sender: TObject);
     function getCompareMethod: TMVCompareMethod;
     function ondata(newAddress: ptruint; PreferedMinimumSize: integer; var newbase: pointer; var newsize: integer): boolean;
@@ -106,6 +107,7 @@ type
     procedure UpdateZoomBar(val:single);
   public
     md: TMemDisplay;
+    procedure DisplayHelp;
   end;
 
 
@@ -386,6 +388,22 @@ begin
   end;
 end;
 
+procedure TfrmMemoryViewEx.FormKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+begin
+  if(key=VK_F1)then
+  begin
+    if(not showing_help)then
+    begin
+      showing_help:=true;
+      DisplayHelp;
+      showing_help:=false;
+    end;
+  end
+  else if(key=VK_ESCAPE)then
+    self.close;
+end;
+
 procedure TfrmMemoryViewEx.cbAddresslistOnlyChange(Sender: TObject);
 begin
   cbAddresslist.enabled:=cbAddresslistOnly.checked;
@@ -639,9 +657,9 @@ begin
           p:=newp;
           size:=newsize;
           LimitCoordinates; //recheck with the new ypos. (in case of size change (end of buf?))
-          UpdateAddress(address);
         end;
         render;
+        UpdateAddress(address);
       end
       else
         MoveTo(PosOrigin.x-(DragOrigin.x-x), PosOrigin.y+(DragOrigin.y-y));
@@ -708,9 +726,9 @@ begin
   end
   else if(ssshift in Shift)then
   begin
-    val:=1;
+    val:=10;
     if(ssRight in shift)then
-        val:=10;
+        val:=1;
     if(WheelDelta<0)then
         setPitch(fPitch-(val*fPixelByteSize))
     else
@@ -720,16 +738,36 @@ begin
   end
   else
   begin
-    tmp:=address+WheelDelta*fPitch*fPixelByteSize;
-    address:=tmp;
-    UpdateAddress(address);
+    val:=1;
+    if(ssRight in shift)then
+    begin
+        val:=4;
+        if(ssAlt in shift)then
+            val:=40;
+    end
+    else if(ssAlt in shift)then
+        val:=10;
+    val:=val*WheelDelta;
+    fYpos:=fYpos+val;
   end;
 
 
   LimitCoordinates;
   setupFont;
   render;
+  UpdateAddress(address);
   end;
+end;
+
+procedure TfrmMemoryViewEx.DisplayHelp;
+var s:string;
+begin
+    s:='ctrl+wheel=zoom'#13#10+
+        'shift+wheel=pitch'#13#10+
+        '(+RMB)'#13#10+
+        'wheel=scroll'#13#10+
+        '(+RMB or +alt)'+#13#10;
+    MessageBox(self.Handle,PAnsiChar(s),'MV HELP',MB_OK or MB_SYSTEMMODAL);
 end;
 
 procedure TfrmMemoryViewEx.mdRecenterDrag;

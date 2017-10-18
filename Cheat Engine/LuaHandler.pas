@@ -7489,7 +7489,7 @@ var
 
   h: THandle;
 begin
-
+  result:=0;
   if lua_isuserdata(L, 1) then
   begin
     s:=lua_toceuserdata(L, 1);
@@ -7500,12 +7500,7 @@ begin
       lua_pushinteger(L, h);
       result:=1;
     end;
-
   end;
-
-
-
-
 end;
 
 function lua_speakex(engLang: boolean; L: Plua_State): integer; cdecl;
@@ -8393,6 +8388,7 @@ begin
   if r=STATUS_INFO_LENGTH_MISMATCH then exit(0);
   if r<>0 then exit(0);
 
+  peprocess:=0;
   if lua_gettop(L)>=1 then
   begin
     filter:=lua_tointeger(L,1);

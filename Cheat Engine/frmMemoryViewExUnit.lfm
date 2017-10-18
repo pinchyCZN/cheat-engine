@@ -6,8 +6,10 @@ object frmMemoryViewEx: TfrmMemoryViewEx
   Caption = 'Graphical Memory View '
   ClientHeight = 482
   ClientWidth = 836
+  KeyPreview = True
   OnCreate = FormCreate
   OnDestroy = FormDestroy
+  OnKeyDown = FormKeyDown
   Position = poScreenCenter
   LCLVersion = '1.6.4.0'
   object Panel1: TPanel
@@ -17,7 +19,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
     Width = 690
     Align = alClient
     BevelOuter = bvNone
-    Color = clLime
+    Color = clBlack
     ParentColor = False
     TabOrder = 0
   end
