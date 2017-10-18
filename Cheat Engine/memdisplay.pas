@@ -68,7 +68,7 @@ type
 
     hasFont: boolean;
 
-    procedure wndproc(var TheMessage: TLMessage); override;
+    procedure wndproc_mem(var TheMessage: TLMessage);
     procedure Resize; override;
     procedure updaterevent(sender: TObject);
     procedure SetZoom(z:single);
@@ -522,7 +522,7 @@ begin
 //  render;
 end;
 
-procedure TMemDisplay.wndproc(var TheMessage: TLMessage);
+procedure TMemDisplay.wndproc_mem(var TheMessage: TLMessage);
 begin
   if TheMessage.msg=lm_paint then
     render()
@@ -738,7 +738,7 @@ begin
 
   oldWndProc:=WindowProc;
 
-  WindowProc:=wndproc;
+  WindowProc:=wndproc_mem;
 
 
   //some default inits
