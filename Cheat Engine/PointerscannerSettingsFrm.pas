@@ -692,7 +692,7 @@ begin
       exit;
     end;
   end;
-
+  comparecount:=0;
   if cbCompareToOtherPointermaps.checked then
   begin
     //check if the addresses are valid

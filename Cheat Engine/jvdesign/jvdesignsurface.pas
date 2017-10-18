@@ -33,7 +33,7 @@ Known Issues:
 // $Id: JvDesignSurface.pas 12931 2010-11-28 13:36:50Z ahuser $
 
 unit JvDesignSurface;
-
+{$WARNINGS OFF}
 {$mode objfpc}{$H+}
 {$DEFINE NO_DESIGNHOOK}
 interface
@@ -957,6 +957,7 @@ var
     i: integer;
 
 begin
+  p:=nil;
   s:=TStringStream.Create(clipboard.AsText);
   ms:=TMemoryStream.Create;
 
@@ -1409,6 +1410,6 @@ initialization
 finalization
   UnregisterUnitVersion(HInstance);
 {$ENDIF UNITVERSIONING}
-
+{$WARNINGS ON}
 end.
 

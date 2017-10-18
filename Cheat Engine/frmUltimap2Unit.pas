@@ -413,7 +413,7 @@ var
 begin
   //read the memory and add it if necesary
   result:=nil;
-
+  endaddress:=0;
   ownerForm.regiontreeMREW.Beginwrite;
 
   try

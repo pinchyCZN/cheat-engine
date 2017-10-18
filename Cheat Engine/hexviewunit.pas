@@ -169,7 +169,7 @@ type
     procedure GetSelectionRange(var start: ptruint; var stop: ptruint);
     procedure PasteFromClipboard;
 
-    procedure update; //hidden on purpose
+    procedure update; override; //hidden on purpose
     procedure changeSelected;
     procedure AddSelectedAddressToCheatTable;
     function getAddressFromCurrentMousePosition(var region: THexRegion): ptrUint;
@@ -1917,9 +1917,11 @@ begin
   begin
     if usedRelativeBase then
     begin
+      {$IFDEF CPU64}
       if fAddress<ptrUint($100000000) then
         addresswidth:=addresswidthdefault
       else
+      {$ENDIF}
         addresswidth:=offscreenbitmap.Canvas.TextWidth(inttohex(fAddress,8));
 
       usedRelativeBase:=false; //only need to do this once (saves a small amount of cpu, actually neglible, but still...)

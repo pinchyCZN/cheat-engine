@@ -620,7 +620,7 @@ type TCEForm=class(TCustomForm)
     procedure RestoreToDesignState;
     procedure SaveCurrentStateasDesign;
     function getVisible:boolean;
-    procedure setVisible(state: boolean);
+    procedure setVisible(state: boolean); override;
     destructor destroy; override;
 
     property  active: boolean read getActive write setActive;

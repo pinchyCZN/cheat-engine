@@ -68,7 +68,7 @@ type
 
     hasFont: boolean;
 
-    procedure wndproc(var TheMessage: TLMessage);
+    procedure wndproc(var TheMessage: TLMessage); override;
     procedure Resize; override;
     procedure updaterevent(sender: TObject);
     procedure SetZoom(z:single);

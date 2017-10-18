@@ -626,8 +626,8 @@ LPIMAGEHLP_STACK_FRAME = PIMAGEHLP_STACK_FRAME;
 function symflagsToString(symflags: dword): string;
 var s: string;
 begin
-  {$IFNDEF UNIX}
   s:='';
+  {$IFNDEF UNIX}
   if (symFlags and SYMFLAG_VALUEPRESENT)>0 then
     s:=s+'VALUEPRESENT ';
   if (symFlags and SYMFLAG_REGISTER)>0 then
@@ -655,6 +655,7 @@ begin
   if (symflags and SYMFLAG_TLSREL)>0 then
     s:=s+'TLSREL ';
   {$ENDIF}
+  result:=s;
 end;
 
 function GetTypeName(h: HANDLE; modbase: UINT64; index: integer; infinitycheck: integer=50): string;
@@ -662,8 +663,8 @@ var x: dword;
     type_symtag: TSymTagEnum;
     name: PWCHAR;
 begin
-  {$IFNDEF UNIX}
   result:='';
+  {$IFNDEF UNIX}
   if infinitycheck<0 then exit;
 
   if SymGetTypeInfo(h, modbase, index, TI_GET_SYMTAG, @type_symtag) then
