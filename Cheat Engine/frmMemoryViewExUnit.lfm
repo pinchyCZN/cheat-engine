@@ -304,7 +304,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Left = 296
       Height = 21
       Top = 16
-      Width = 112
+      Width = 128
       Anchors = [akRight, akBottom]
       OnKeyDown = edtAddressKeyDown
       TabOrder = 5

@@ -603,8 +603,11 @@ begin
 end;
 
 procedure TfrmMemoryViewEx.UpdateAddress(val:PtrUInt);
+var s:string;
 begin
-  edtAddress.Caption:=Format('%.8X',[val]);
+  s:=Format('%.8X',[val]);
+  edtAddress.Caption:=s;
+  edtAddress.SelLength:=0;
 end;
 
 procedure TfrmMemoryViewEx.edtAddressKeyDown(Sender: TObject; var Key: Word;
@@ -616,12 +619,12 @@ begin
     md.MoveTo(0,0);
     val:=symhandler.getAddressFromName(edtAddress.Text);
     md.setPointer(val);
-    if(md.address<>val)then
-        UpdateAddress(val);
+    UpdateAddress(val);
   end;
 end;
 
 Procedure TfrmMemoryViewEx.mdMouseDown(Sender:Tobject;Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
+var a:PtrUInt;
 begin
   if button=mbleft then
   begin
@@ -634,7 +637,8 @@ begin
     md.dragaddress:=ssCtrl in shift;
     if(md.dragAddress)then
       md.addressOrigin:=md.address;
-    UpdateAddress(md.address);
+    a:=md.getAddressFromScreenPosition(0,0);
+    UpdateAddress(a);
   end;
 end;
 
@@ -659,10 +663,11 @@ begin
           LimitCoordinates; //recheck with the new ypos. (in case of size change (end of buf?))
         end;
         render;
-        UpdateAddress(address);
       end
       else
         MoveTo(PosOrigin.x-(DragOrigin.x-x), PosOrigin.y+(DragOrigin.y-y));
+      a:=md.getAddressFromScreenPosition(0,0);
+      UpdateAddress(a);
     end;
   end;
 end;
@@ -684,6 +689,7 @@ procedure TfrmMemoryViewEx.mdMouseWheel(Sender: TObject; Shift: TShiftState;
 var oldx, oldy: single;
   tmp:ptruint;
   val:integer;
+  a:PtrUInt;
 begin
   with md do
   begin
@@ -755,19 +761,30 @@ begin
   LimitCoordinates;
   setupFont;
   render;
-  UpdateAddress(address);
+  a:=md.getAddressFromScreenPosition(0,0);
+  UpdateAddress(a);
   end;
 end;
 
 procedure TfrmMemoryViewEx.DisplayHelp;
-var s:string;
+var s,msg:string;
 begin
-    s:='ctrl+wheel=zoom'#13#10+
+    msg:='ctrl+wheel=zoom'#13#10+
         'shift+wheel=pitch'#13#10+
         '(+RMB)'#13#10+
         'wheel=scroll'#13#10+
-        '(+RMB or +alt)'+#13#10;
-    MessageBox(self.Handle,PAnsiChar(s),'MV HELP',MB_OK or MB_SYSTEMMODAL);
+        '(+RMB or +alt)'#13#10+
+        'ctrl+click=move address'#13#10;
+    s:=Format(#13#10'xpos=%d ypos=%d'#13#10+
+                    'pixelsize=%d'#13#10+
+                    'size=%.8X'#13#10+
+                    'addr=%.8X'#13#10,
+                    [md.fXpos,md.fYpos,
+                    md.fPixelByteSize,
+                    md.size,
+                    md.address]);
+    msg:=msg+s;
+    MessageBox(self.Handle,PAnsiChar(msg),'MV HELP',MB_OK or MB_SYSTEMMODAL);
 end;
 
 procedure TfrmMemoryViewEx.mdRecenterDrag;

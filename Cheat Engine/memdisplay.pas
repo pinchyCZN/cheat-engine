@@ -498,23 +498,17 @@ begin
 
     if hglrc=0 then
       raise exception.create(rsFailureCreatingOpenglWindow);
-
-
-
-//    initgl;
-  //  Resize;
   end;
 end;
 
 procedure TMemDisplay.resize;
 begin
-  //
 //  render;
 end;
 
 procedure TMemDisplay.update;
 begin
- // render;
+// render;
 end;
 
 procedure TMemDisplay.repaint;
@@ -528,8 +522,6 @@ begin
     render()
   else
     oldWndProc(TheMessage);
-
- // render;
 end;
 
 procedure TMemDisplay.render;
@@ -543,15 +535,9 @@ var
   constantAlpha: float;
   row: single;
   overlay: PCurrentOverlay;
-
-
-
   x,y: single;
-
   r: trect;
-
   f: THandle;
-
   tl,br: TPoint;
   s: tstringlist;
 
@@ -568,45 +554,30 @@ begin
     exit;
 
   wglMakeCurrent(canvas.handle, hglrc);
-
-
   glPixelTransferf(GL_ALPHA_SCALE, 0.0);
   glPixelTransferf(GL_ALPHA_BIAS,  1.0);
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
   glClearIndex(0.0);
   glClear(GL_COLOR_BUFFER_BIT);
 
   if (fpixelformat=GL_COLOR_INDEX) then
   begin
-
     glPixelTransferi(GL_MAP_COLOR, GL_TRUE);
-
     glPixelTransferi(GL_INDEX_OFFSET, 1);
-
-
     glPixelMapfv(GL_PIXEL_MAP_I_TO_R, 256, @mapr[0]);
     glPixelMapfv(GL_PIXEL_MAP_I_TO_G, 256, @mapg[0]);
     glPixelMapfv(GL_PIXEL_MAP_I_TO_B, 256, @mapb[0]);
-
     constantAlpha:=1;
-
     glPixelMapfv(GL_PIXEL_MAP_I_TO_A, 1, @constantAlpha);
-
     glPixelTransferi(GL_INDEX_SHIFT, 0);
     glPixelTransferi(GL_INDEX_OFFSET, 0);
     glPixelTransferi(GL_MAP_COLOR, GL_TRUE);
-
   end
   else
   begin
     glPixelTransferi(GL_MAP_COLOR, GL_FALSE);
   end;
   glDisable(GL_DITHER);
-
-
-
-
   glShadeModel(GL_FLAT);
   glClearColor(0.0, 0.0, 0.0, 0.5);
   glClearDepth(1.0);
@@ -634,22 +605,15 @@ begin
   glPixelZoom(fZoom, -fZoom);
   glRasterPos2f(0,0);
 
-
-
-
   if p<>nil then
   begin
     maxheight:=size div fPitch;
-
     maxheight:=min(ceil((height+fypos) / fzoom), maxheight ); //limit by the height
 
     row:=fypos / fZoom;
     i:=fpitch*trunc(row);
-    if i<0 then i:=0;
-
-
-
-
+    if i<0 then
+        i:=0;
     glDrawPixels(fPitch div fPixelByteSize, maxheight, fpixelformat,fType, p);
   end;
 
@@ -657,19 +621,13 @@ begin
   //todo: Display the pixel values if the zoom factor is big enough
   if hasfont and (fZoom>8) and (assigned(fOnRequestText)) then //at least 8 pixels...
   begin
-
-
     glListBase(1000);
-
     //get the top left pixel
     tl:=GetTopLeftPixelCoordinates;
     //get the bottom right pixel
     br:=GetBottomRightPixelCoordinates;
-
-
     glRasterPos2f(0,0);
     s:=tstringlist.create;
-
     for i:=tl.x to br.x do
       for j:=tl.y to br.y do
       begin
@@ -690,30 +648,17 @@ begin
           glRasterPos2f(0,0);
 
           glCallLists(length(s[k]), GL_UNSIGNED_BYTE, pchar(s[k]));
-
         end;
-
       end;
-
-
-
-
     s.free;
   end;
 
   SwapBuffers(canvas.handle);
-
-
-
-
-
   QueryPerformanceCounter(after);
 
   lastdiff:=after-before;
-
   inc(totaldiff, lastdiff);
   inc(ticks);
-
 end;
 
 constructor TMemDisplay.Create(TheOwner: TComponent);
@@ -735,11 +680,8 @@ begin
   for i:=0 to 255 do
     mapb[i] := ((i and $c0)>>6)/3.0;
 
-
   oldWndProc:=WindowProc;
-
   WindowProc:=wndproc_mem;
-
 
   //some default inits
   fZoom:=32;
@@ -751,9 +693,6 @@ begin
   updater:=TIdleTimer.Create(self);
   updater.interval:=100;
   updater.OnTimer:=updaterevent;
-
-
-
 end;
 
 procedure TMemDisplay.RecenterDrag;
