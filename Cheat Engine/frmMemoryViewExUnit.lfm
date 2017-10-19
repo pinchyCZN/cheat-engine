@@ -156,6 +156,18 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       TabOrder = 3
       Text = 'Byte'
     end
+    object sbVERT: TScrollBar
+      Left = 0
+      Height = 233
+      Top = 144
+      Width = 17
+      Anchors = [akTop, akLeft, akBottom]
+      Kind = sbVertical
+      Max = 1000
+      PageSize = 0
+      TabOrder = 4
+      OnChange = sbVERTChange
+    end
   end
   object Panel3: TPanel
     Left = 0

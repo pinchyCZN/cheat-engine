@@ -69,6 +69,7 @@ type
     rbAnd: TRadioButton;
     rbOr: TRadioButton;
     rbXor: TRadioButton;
+    sbVERT: TScrollBar;
     tbPitch: TTrackBar;
     tbZoom: TTrackBar;
     procedure cbAddresslistChange(Sender: TObject);
@@ -85,6 +86,7 @@ type
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure sbVERTChange(Sender: TObject);
     procedure tbPitchChange(Sender: TObject);
     procedure tbZoomChange(Sender: TObject);
 
@@ -105,6 +107,7 @@ type
     procedure UpdateZoomText(val:single);
     procedure UpdateAddress(val:PtrUInt);
     procedure UpdateZoomBar(val:single);
+    procedure UpdateScrollbar(val:PtrUInt);
   public
     md: TMemDisplay;
     procedure DisplayHelp;
@@ -366,6 +369,13 @@ begin
   md.OnMouseMove:=mdMouseMove;
   md.OnMouseWheel:=mdMouseWheel;
   md.OnDblClick:=Panel1DblClick;
+  md.setPitch(1024);
+  md.zoom:=1;
+  UpdateZoomBar(md.zoom);
+  UpdateZoomText(md.zoom);
+  UpdateAddress(md.address);
+  edtPitch.Text:=IntTostr(md.pitch);
+  tbPitch.Position:=md.pitch;
 
   getmem(buf,4096);
   bufsize:=4096;
@@ -402,6 +412,26 @@ begin
   end
   else if(key=VK_ESCAPE)then
     self.close;
+end;
+
+procedure TfrmMemoryViewEx.sbVERTChange(Sender: TObject);
+var i:integer;
+  x,y:PtrUInt;
+begin
+  if(not Assigned(processhandler))then
+    exit;
+  y:=sbVERT.Max;
+  if(y=0)then
+    exit;
+  x:=$FFFFFFFF;
+  if(processhandler.is64Bit)then
+    x:=-1;
+  x:=x div y;
+  i:=sbVERT.Position;
+  x:=x*i;
+  md.MoveTo(0,0);
+  md.setPointer(x);
+  UpdateAddress(x);
 end;
 
 procedure TfrmMemoryViewEx.cbAddresslistOnlyChange(Sender: TObject);
@@ -602,10 +632,28 @@ begin
     md.render;
 end;
 
+procedure TfrmMemoryViewEx.UpdateScrollbar(val:PtrUInt);
+var y:double;
+    x:Qword;
+begin
+    if(not Assigned(processhandler))then
+      exit;
+    x:=$FFFFFFFF;
+    if(processhandler.is64Bit)then
+      x:=-1;
+    y:=val/x;
+    y:=Abs(y*sbVERT.Max);
+    sbVERT.Position:=Round(y);
+end;
+
 procedure TfrmMemoryViewEx.UpdateAddress(val:PtrUInt);
 var s:string;
+    fmt:string;
 begin
-  s:=Format('%.8X',[val]);
+  fmt:='%.8X';
+  if((val and $FFFFFFFF00000000) <> 0)then
+    fmt:='%.16X';
+  s:=Format(fmt,[val]);
   edtAddress.Caption:=s;
   edtAddress.SelLength:=0;
 end;
@@ -620,6 +668,7 @@ begin
     val:=symhandler.getAddressFromName(edtAddress.Text);
     md.setPointer(val);
     UpdateAddress(val);
+    UpdateScrollbar(val);
   end;
 end;
 
@@ -639,6 +688,7 @@ begin
       md.addressOrigin:=md.address;
     a:=md.getAddressFromScreenPosition(0,0);
     UpdateAddress(a);
+    UpdateScrollbar(a);
   end;
 end;
 
@@ -668,6 +718,7 @@ begin
         MoveTo(PosOrigin.x-(DragOrigin.x-x), PosOrigin.y+(DragOrigin.y-y));
       a:=md.getAddressFromScreenPosition(0,0);
       UpdateAddress(a);
+      UpdateScrollbar(a);
     end;
   end;
 end;
@@ -763,6 +814,7 @@ begin
   render;
   a:=md.getAddressFromScreenPosition(0,0);
   UpdateAddress(a);
+  UpdateScrollbar(a);
   end;
 end;
 

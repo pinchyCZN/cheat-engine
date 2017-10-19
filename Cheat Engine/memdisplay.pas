@@ -134,10 +134,18 @@ type
 
 
 implementation
+uses ProcessHandlerUnit;
 
 resourcestring
   rsOnDataReturnedATooSmallMemoryRegion = 'OnData returned a too small memory region. It should have returned false instead';
   rsFailureCreatingOpenglWindow = 'failure creating opengl window';
+
+procedure ClampAddress(var a:PtrUInt);
+begin
+  if(Assigned(processhandler))then
+      if(not processhandler.is64Bit)then
+        a:=a and $FFFFFFFF;
+end;
 
 procedure TMemDisplay.setPointer(address: ptruint);
 var newp: pointer;
@@ -149,9 +157,7 @@ begin
   begin
     p:=newp;
     size:=newsize;
-
     LimitCoordinates; //recheck with the new ypos. (in case of size change (end of buf?))
-
     render;
   end
   else
@@ -159,10 +165,6 @@ begin
     self.p:=nil;
     size:=-1;
   end;
-
-
-
-
 end;
 
 procedure TMemDisplay.setPointer(address: ptruint; p: pointer; size: integer);
@@ -272,6 +274,7 @@ begin
   c.x:=trunc((-fxpos+x) / fzoom);
   c.y:=trunc((fypos+y)/fzoom);
   result:=self.address+c.y*fPitch+c.x*fPixelByteSize;
+  ClampAddress(result);
 end;
 
 
@@ -280,6 +283,7 @@ var c: tpoint;
 begin
   c:=GetTopLeftPixelCoordinates;
   result:=self.address+c.y*fPitch+c.x*fPixelByteSize;
+  ClampAddress(result);
 end;
 
 function TMemdisplay.GetTopLeftPixelCoordinates: TPoint;
@@ -375,6 +379,7 @@ begin
   if fYpos<0 then
   begin
     a:=self.address-ceil(-(fypos/fzoom)) *bytesperrow;
+    ClampAddress(a);
     if assigned(fOnData) and fOnData(a,preferedsize,newp,newsize) then
     begin
       address:=a;
