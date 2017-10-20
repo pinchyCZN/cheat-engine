@@ -426,7 +426,6 @@ type
     procedure Findoutwhataddressesthisinstructionaccesses1Click(
       Sender: TObject);
     procedure sbShowFloatsClick(Sender: TObject);
-    procedure ScriptConsole1Click(Sender: TObject);
     procedure DisplayTypeClick(Sender: TObject);
     procedure Showjumplines1Click(Sender: TObject);
     procedure Onlyshowjumplineswithinrange1Click(Sender: TObject);
@@ -3844,25 +3843,72 @@ begin
   end;
 end;
 
+function ClampWindowScreen(var r:Rect):boolean;
+var hmon:HMONITOR;
+    mi:MONITORINFO;
+    sr:rect;
+    w,h:integer;
+begin
+    result:=false;
+    hmon:=MonitorFromRect(@r,MONITOR_DEFAULTTONEAREST);
+    if(hmon=0)then
+        exit;
+    mi.cbSize:=sizeof(mi);
+    if(not GetMonitorInfo(hmon,@mi))then
+        exit;
+    sr:=mi.rcMonitor;
+    w:=r.right-r.left;
+    h:=r.bottom-r.top;
+    if(r.left < sr.left)then
+    begin
+        r.left:=sr.left;
+        r.right:=r.left+w;
+        result:=true;
+    end;
+    if(r.right >  sr.right)then
+    begin
+        r.right:=sr.right;
+        r.left:=r.right-w;
+        result:=true;
+    end;
+    if(r.top < sr.top)then
+    begin
+      r.top:=sr.top;
+      r.bottom:=r.top+h;
+      result:=true;
+    end;
+    if(r.bottom > sr.bottom)then
+    begin
+      r.bottom:=sr.bottom;
+      r.top:=r.bottom-h;
+      result:=true;
+    end;
+end;
+
 procedure TMemoryBrowser.sbShowFloatsClick(Sender: TObject);
   var x: tpoint;
 z: trect;
+win:rect;
 begin
-
   if frmFloatingPointPanel=nil then
     frmFloatingPointPanel:=TfrmFloatingPointPanel.create(self);
 
   frmFloatingPointPanel.Left:=self.left+self.Width;
   frmFloatingPointPanel.Top:=self.top+(self.ClientOrigin.y-self.top)-(frmFloatingPointPanel.ClientOrigin.y-frmFloatingPointPanel.top);
   frmFloatingPointPanel.ClientHeight:=scrollbox1.Height;
+  win.left:=frmFloatingPointPanel.Left;
+  win.top:=frmFloatingPointPanel.Top;
+  win.right:=frmFloatingPointPanel.Width + win.left;
+  win.bottom:=frmFloatingPointPanel.Height + win.top;
+  if(ClampWindowScreen(win))then
+  begin
+    frmFloatingPointPanel.Left:=win.left;
+    frmFloatingPointPanel.Top:=win.top;
+  end;
+
 
   frmFloatingPointPanel.SetContextPointer(@lastdebugcontext);
   frmFloatingPointPanel.show;//pop to foreground
-end;
-
-procedure TMemoryBrowser.ScriptConsole1Click(Sender: TObject);
-begin
-
 end;
 
 procedure TMemoryBrowser.DisplayTypeClick(Sender: TObject);
@@ -4435,6 +4481,60 @@ begin
     result:=0;
 end;
 
+function GetBestHighlightColor(text,bg:TColor):TColor;
+  function GetComponent(e:TColor;i:integer):integer;
+  begin
+    result:=e shr (i*8);
+    result:=result and $FF;
+  end;
+  function getsRGB(c:double):double;
+  begin
+    c:=c / 255;
+    if(c<=0.03928)then
+      result:=c/12.92
+    else
+      result:=Power((c+0.055)/1.055,2.4);
+  end;
+  function getL(e:TColor):double;
+  begin
+    //tcolor=BGR formula=RGB
+    result:=(0.2126 * getsRGB(GetComponent(e,0))) + (0.7152 * getsRGB(GetComponent(e,1))) + (0.0722 * getsRGB(GetComponent(e,2)));
+  end;
+  function get_contrast(x,y:double):double;
+  var a,b:double;
+  begin
+    a:=max(x,y);
+    b:=min(x,y);
+    result:=(a+0.05)/(b+0.05);
+  end;
+var x,y,w:double;
+  i:integer;
+  colors:array[0..2] of TColor;
+  pass:boolean;
+begin
+  result:=clAqua;
+  colors[1]:=clRed;
+  colors[2]:=bg;
+  pass:=true;
+  colors[0]:=result;
+  for i:=Low(colors) to High(colors) do
+  begin
+    x:=getL(colors[i]);
+    y:=getL(text);
+    w:=get_contrast(x,y);
+    if(w<2.1)then
+    begin
+      pass:=false;
+      Break;
+    end;
+  end;
+  if(not pass)then
+  begin
+    result:=bg+$101010;
+    result:=Result and $FFFFFF;
+  end;
+end;
+
 procedure TMemoryBrowser.UpdateDebugContext(threadhandle: THandle; threadid: dword; changeselection: boolean=true);
 var temp: string='';
     temp2: string;
@@ -4450,6 +4550,7 @@ var temp: string='';
 
     params: string;
     accessedreglist: tstringlist=nil;
+    mod_color:TColor;
 begin
   if processhandler.SystemArchitecture=archX86 then
   begin
@@ -4593,25 +4694,26 @@ begin
 
   if (accessedreglist<>nil) then
   begin
-    if accessedreglist.IndexOf('RAX')>=0 then eaxlabel.color:=clAqua else eaxlabel.color:=clNone;
-    if accessedreglist.IndexOf('RBX')>=0 then ebxlabel.color:=clAqua else ebxlabel.color:=clNone;
-    if accessedreglist.IndexOf('RCX')>=0 then ecxlabel.color:=clAqua else ecxlabel.color:=clNone;
-    if accessedreglist.IndexOf('RDX')>=0 then edxlabel.color:=clAqua else edxlabel.color:=clNone;
-    if accessedreglist.IndexOf('RSI')>=0 then esilabel.color:=clAqua else esilabel.color:=clNone;
-    if accessedreglist.IndexOf('RDI')>=0 then edilabel.color:=clAqua else edilabel.color:=clNone;
-    if accessedreglist.IndexOf('RBP')>=0 then ebplabel.color:=clAqua else ebplabel.color:=clNone;
-    if accessedreglist.IndexOf('RSP')>=0 then esplabel.color:=clAqua else esplabel.color:=clNone;
+    mod_color:=GetBestHighlightColor(GetSysColor(COLOR_WINDOWTEXT),GetSysColor(COLOR_BTNFACE));
+    if accessedreglist.IndexOf('RAX')>=0 then eaxlabel.color:=mod_color else eaxlabel.color:=clNone;
+    if accessedreglist.IndexOf('RBX')>=0 then ebxlabel.color:=mod_color else ebxlabel.color:=clNone;
+    if accessedreglist.IndexOf('RCX')>=0 then ecxlabel.color:=mod_color else ecxlabel.color:=clNone;
+    if accessedreglist.IndexOf('RDX')>=0 then edxlabel.color:=mod_color else edxlabel.color:=clNone;
+    if accessedreglist.IndexOf('RSI')>=0 then esilabel.color:=mod_color else esilabel.color:=clNone;
+    if accessedreglist.IndexOf('RDI')>=0 then edilabel.color:=mod_color else edilabel.color:=clNone;
+    if accessedreglist.IndexOf('RBP')>=0 then ebplabel.color:=mod_color else ebplabel.color:=clNone;
+    if accessedreglist.IndexOf('RSP')>=0 then esplabel.color:=mod_color else esplabel.color:=clNone;
 
     if processhandler.is64Bit then
     begin
-      if accessedreglist.IndexOf('R8')>=0 then r8label.color:=clAqua else r8label.color:=clNone;
-      if accessedreglist.IndexOf('R9')>=0 then r9label.color:=clAqua else r9label.color:=clNone;
-      if accessedreglist.IndexOf('R10')>=0 then r10label.color:=clAqua else r10label.color:=clNone;
-      if accessedreglist.IndexOf('R11')>=0 then r11label.color:=clAqua else r11label.color:=clNone;
-      if accessedreglist.IndexOf('R12')>=0 then r12label.color:=clAqua else r12label.color:=clNone;
-      if accessedreglist.IndexOf('R13')>=0 then r13label.color:=clAqua else r13label.color:=clNone;
-      if accessedreglist.IndexOf('R14')>=0 then r14label.color:=clAqua else r14label.color:=clNone;
-      if accessedreglist.IndexOf('R15')>=0 then r15label.color:=clAqua else r15label.color:=clNone;
+      if accessedreglist.IndexOf('R8')>=0 then r8label.color:=mod_color else r8label.color:=clNone;
+      if accessedreglist.IndexOf('R9')>=0 then r9label.color:=mod_color else r9label.color:=clNone;
+      if accessedreglist.IndexOf('R10')>=0 then r10label.color:=mod_color else r10label.color:=clNone;
+      if accessedreglist.IndexOf('R11')>=0 then r11label.color:=mod_color else r11label.color:=clNone;
+      if accessedreglist.IndexOf('R12')>=0 then r12label.color:=mod_color else r12label.color:=clNone;
+      if accessedreglist.IndexOf('R13')>=0 then r13label.color:=mod_color else r13label.color:=clNone;
+      if accessedreglist.IndexOf('R14')>=0 then r14label.color:=mod_color else r14label.color:=clNone;
+      if accessedreglist.IndexOf('R15')>=0 then r15label.color:=mod_color else r15label.color:=clNone;
     end;
   end;
 
