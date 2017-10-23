@@ -1615,5 +1615,9 @@ object MemoryBrowser: TMemoryBrowser
       Caption = 'Show in hexview'
       OnClick = miShowInHexviewClick
     end
+    object miSetHighlightColor: TMenuItem
+      Caption = 'Set Highlight color'
+      OnClick = miSetHighlightColorClick
+    end
   end
 end

@@ -62,6 +62,7 @@ type
     MenuItem26: TMenuItem;
     MenuItem27: TMenuItem;
     MenuItem28: TMenuItem;
+    miSetHighlightColor: TMenuItem;
     miSVCopy: TMenuItem;
     miShowRelative: TMenuItem;
     miHVBack: TMenuItem;
@@ -294,6 +295,7 @@ type
     procedure miSetAddressClick(Sender: TObject);
     procedure miGNUAssemblerClick(Sender: TObject);
     procedure miBinutilsSelectClick(Sender: TObject);
+    procedure miSetHighlightColorClick(Sender: TObject);
     procedure miShowRelativeClick(Sender: TObject);
     procedure miSVCopyClick(Sender: TObject);
     procedure pmStacktracePopup(Sender: TObject);
@@ -650,7 +652,8 @@ uses Valuechange,
   Parsers,
   GnuAssembler,
   frmEditHistoryUnit,
-  frmWatchlistUnit;
+  frmWatchlistUnit,
+  ContrastColorPicker;
 
 
 resourcestring
@@ -1205,6 +1208,21 @@ begin
       miDisassemblerType.Enabled:=false;
     end;
   end;
+end;
+
+procedure TMemoryBrowser.miSetHighlightColorClick(Sender: TObject);
+var cpicker:TColorContrastPicker;
+  r:integer;
+begin
+    cpicker:=TColorContrastPicker.Create(self);
+    cpicker.CurrentHighlightColor:=self.Highlightcolor;
+    r:=cpicker.ShowModal;
+    if(r=mrOK)then
+    begin
+      self.Highlightcolor:=cpicker.CurrentHighlightColor;
+      self.Repaint;
+    end;
+    cpicker.free;
 end;
 
 procedure TMemoryBrowser.miShowRelativeClick(Sender: TObject);
@@ -1955,7 +1973,6 @@ var x: array of integer;
   i: integer;
   c: tcolor;
 begin
-
   MemoryBrowsers.Add(self);
 
   bookmarks[0].setMi:=miSetBookmark0;
@@ -2086,7 +2103,7 @@ begin
   memoryaddress:=$00400000;
   memorylabelcount:=0;
 
-  Highlightcolor:=clHighlight;
+  Highlightcolor:=clAqua;
 
   disassemblerHistory:=TStringList.create;
   memorybrowserHistory:=TStringList.create;
@@ -4481,60 +4498,6 @@ begin
     result:=0;
 end;
 
-function GetBestHighlightColor(text,bg:TColor):TColor;
-  function GetComponent(e:TColor;i:integer):integer;
-  begin
-    result:=e shr (i*8);
-    result:=result and $FF;
-  end;
-  function getsRGB(c:double):double;
-  begin
-    c:=c / 255;
-    if(c<=0.03928)then
-      result:=c/12.92
-    else
-      result:=Power((c+0.055)/1.055,2.4);
-  end;
-  function getL(e:TColor):double;
-  begin
-    //tcolor=BGR formula=RGB
-    result:=(0.2126 * getsRGB(GetComponent(e,0))) + (0.7152 * getsRGB(GetComponent(e,1))) + (0.0722 * getsRGB(GetComponent(e,2)));
-  end;
-  function get_contrast(x,y:double):double;
-  var a,b:double;
-  begin
-    a:=max(x,y);
-    b:=min(x,y);
-    result:=(a+0.05)/(b+0.05);
-  end;
-var x,y,w:double;
-  i:integer;
-  colors:array[0..2] of TColor;
-  pass:boolean;
-begin
-  result:=clAqua;
-  colors[1]:=clRed;
-  colors[2]:=bg;
-  pass:=true;
-  colors[0]:=result;
-  for i:=Low(colors) to High(colors) do
-  begin
-    x:=getL(colors[i]);
-    y:=getL(text);
-    w:=get_contrast(x,y);
-    if(w<2.1)then
-    begin
-      pass:=false;
-      Break;
-    end;
-  end;
-  if(not pass)then
-  begin
-    result:=bg+$101010;
-    result:=Result and $FFFFFF;
-  end;
-end;
-
 procedure TMemoryBrowser.UpdateDebugContext(threadhandle: THandle; threadid: dword; changeselection: boolean=true);
 var temp: string='';
     temp2: string;
@@ -4550,7 +4513,7 @@ var temp: string='';
 
     params: string;
     accessedreglist: tstringlist=nil;
-    mod_color:TColor;
+    contrast_color:TColor;
 begin
   if processhandler.SystemArchitecture=archX86 then
   begin
@@ -4694,26 +4657,26 @@ begin
 
   if (accessedreglist<>nil) then
   begin
-    mod_color:=GetBestHighlightColor(GetSysColor(COLOR_WINDOWTEXT),GetSysColor(COLOR_BTNFACE));
-    if accessedreglist.IndexOf('RAX')>=0 then eaxlabel.color:=mod_color else eaxlabel.color:=clNone;
-    if accessedreglist.IndexOf('RBX')>=0 then ebxlabel.color:=mod_color else ebxlabel.color:=clNone;
-    if accessedreglist.IndexOf('RCX')>=0 then ecxlabel.color:=mod_color else ecxlabel.color:=clNone;
-    if accessedreglist.IndexOf('RDX')>=0 then edxlabel.color:=mod_color else edxlabel.color:=clNone;
-    if accessedreglist.IndexOf('RSI')>=0 then esilabel.color:=mod_color else esilabel.color:=clNone;
-    if accessedreglist.IndexOf('RDI')>=0 then edilabel.color:=mod_color else edilabel.color:=clNone;
-    if accessedreglist.IndexOf('RBP')>=0 then ebplabel.color:=mod_color else ebplabel.color:=clNone;
-    if accessedreglist.IndexOf('RSP')>=0 then esplabel.color:=mod_color else esplabel.color:=clNone;
+    contrast_color:=Highlightcolor;
+    if accessedreglist.IndexOf('RAX')>=0 then eaxlabel.color:=contrast_color else eaxlabel.color:=clNone;
+    if accessedreglist.IndexOf('RBX')>=0 then ebxlabel.color:=contrast_color else ebxlabel.color:=clNone;
+    if accessedreglist.IndexOf('RCX')>=0 then ecxlabel.color:=contrast_color else ecxlabel.color:=clNone;
+    if accessedreglist.IndexOf('RDX')>=0 then edxlabel.color:=contrast_color else edxlabel.color:=clNone;
+    if accessedreglist.IndexOf('RSI')>=0 then esilabel.color:=contrast_color else esilabel.color:=clNone;
+    if accessedreglist.IndexOf('RDI')>=0 then edilabel.color:=contrast_color else edilabel.color:=clNone;
+    if accessedreglist.IndexOf('RBP')>=0 then ebplabel.color:=contrast_color else ebplabel.color:=clNone;
+    if accessedreglist.IndexOf('RSP')>=0 then esplabel.color:=contrast_color else esplabel.color:=clNone;
 
     if processhandler.is64Bit then
     begin
-      if accessedreglist.IndexOf('R8')>=0 then r8label.color:=mod_color else r8label.color:=clNone;
-      if accessedreglist.IndexOf('R9')>=0 then r9label.color:=mod_color else r9label.color:=clNone;
-      if accessedreglist.IndexOf('R10')>=0 then r10label.color:=mod_color else r10label.color:=clNone;
-      if accessedreglist.IndexOf('R11')>=0 then r11label.color:=mod_color else r11label.color:=clNone;
-      if accessedreglist.IndexOf('R12')>=0 then r12label.color:=mod_color else r12label.color:=clNone;
-      if accessedreglist.IndexOf('R13')>=0 then r13label.color:=mod_color else r13label.color:=clNone;
-      if accessedreglist.IndexOf('R14')>=0 then r14label.color:=mod_color else r14label.color:=clNone;
-      if accessedreglist.IndexOf('R15')>=0 then r15label.color:=mod_color else r15label.color:=clNone;
+      if accessedreglist.IndexOf('R8')>=0 then r8label.color:=contrast_color else r8label.color:=clNone;
+      if accessedreglist.IndexOf('R9')>=0 then r9label.color:=contrast_color else r9label.color:=clNone;
+      if accessedreglist.IndexOf('R10')>=0 then r10label.color:=contrast_color else r10label.color:=clNone;
+      if accessedreglist.IndexOf('R11')>=0 then r11label.color:=contrast_color else r11label.color:=clNone;
+      if accessedreglist.IndexOf('R12')>=0 then r12label.color:=contrast_color else r12label.color:=clNone;
+      if accessedreglist.IndexOf('R13')>=0 then r13label.color:=contrast_color else r13label.color:=clNone;
+      if accessedreglist.IndexOf('R14')>=0 then r14label.color:=contrast_color else r14label.color:=clNone;
+      if accessedreglist.IndexOf('R15')>=0 then r15label.color:=contrast_color else r15label.color:=clNone;
     end;
   end;
 

@@ -1,0 +1,143 @@
+object ColorContrastPicker: TColorContrastPicker
+  Left = 921
+  Height = 241
+  Top = 149
+  Width = 437
+  Caption = 'ColorContrastPicker'
+  ClientHeight = 241
+  ClientWidth = 437
+  KeyPreview = True
+  OnKeyDown = FormKeyDown
+  OnShow = FormShow
+  Position = poOwnerFormCenter
+  LCLVersion = '1.6.4.0'
+  object btnOK: TButton
+    Left = 10
+    Height = 25
+    Top = 197
+    Width = 75
+    Caption = 'OK'
+    OnClick = btnOKClick
+    TabOrder = 0
+  end
+  object btnCANCEL: TButton
+    Left = 344
+    Height = 25
+    Top = 197
+    Width = 75
+    Caption = 'Cancel'
+    OnClick = btnCANCELClick
+    TabOrder = 1
+  end
+  object btnCUSTOM: TButton
+    Left = 344
+    Height = 25
+    Top = 132
+    Width = 75
+    Caption = 'Custom'
+    OnClick = btnCUSTOMClick
+    TabOrder = 2
+  end
+  object lbl1: TLabel
+    Left = 10
+    Height = 13
+    Top = 16
+    Width = 152
+    Caption = 'SAMPLE TEXT EAX=11223344'
+    ParentColor = False
+  end
+  object lbl2: TLabel
+    Left = 10
+    Height = 13
+    Top = 40
+    Width = 200
+    Caption = 'TEXT WITH HIGHLIGHT EBX=44332211'
+    ParentColor = False
+  end
+  object lbl3: TLabel
+    Left = 10
+    Height = 13
+    Top = 64
+    Width = 132
+    Caption = 'RED TEXT ECX=00112233'
+    ParentColor = False
+  end
+  object cbCOLORS: TComboBox
+    Left = 112
+    Height = 21
+    Top = 136
+    Width = 124
+    DropDownCount = 20
+    ItemHeight = 13
+    OnChange = cbCOLORSChange
+    Style = csDropDownList
+    TabOrder = 3
+  end
+  object lbl4: TLabel
+    Left = 10
+    Height = 13
+    Top = 88
+    Width = 180
+    Caption = 'RED W/HIGHLIGHT EDX=44332211'
+    ParentColor = False
+  end
+  object lblCONTRAST1: TLabel
+    Left = 264
+    Height = 13
+    Top = 16
+    Width = 75
+    Caption = 'lblCONTRAST1'
+    ParentColor = False
+  end
+  object lblCONTRAST2: TLabel
+    Left = 264
+    Height = 13
+    Top = 40
+    Width = 75
+    Caption = 'lblCONTRAST2'
+    ParentColor = False
+  end
+  object lblCONTRAST3: TLabel
+    Left = 264
+    Height = 13
+    Top = 64
+    Width = 75
+    Caption = 'lblCONTRAST3'
+    ParentColor = False
+  end
+  object lblCONTRAST4: TLabel
+    Left = 264
+    Height = 13
+    Top = 88
+    Width = 75
+    Caption = 'lblCONTRAST4'
+    ParentColor = False
+  end
+  object ColorDialog1: TColorDialog
+    Color = clBlack
+    CustomColors.Strings = (
+      'ColorA=000000'
+      'ColorB=000080'
+      'ColorC=008000'
+      'ColorD=008080'
+      'ColorE=800000'
+      'ColorF=800080'
+      'ColorG=808000'
+      'ColorH=808080'
+      'ColorI=C0C0C0'
+      'ColorJ=0000FF'
+      'ColorK=00FF00'
+      'ColorL=00FFFF'
+      'ColorM=FF0000'
+      'ColorN=FF00FF'
+      'ColorO=FFFF00'
+      'ColorP=FFFFFF'
+      'ColorQ=C0DCC0'
+      'ColorR=F0CAA6'
+      'ColorS=F0FBFF'
+      'ColorT=A4A0A0'
+    )
+    left = 288
+    top = 128
+  end
+end
