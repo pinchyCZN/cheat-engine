@@ -16,6 +16,7 @@ type
   TfrmMemviewPreferences = class(TForm)
     btnFont: TButton;
     btnHexFont: TButton;
+    btnHCOLOR: TButton;
     Button2: TButton;
     Button3: TButton;
     cbColorGroup: TComboBox;
@@ -33,6 +34,9 @@ type
     GroupBox3: TGroupBox;
     GroupBox4: TGroupBox;
     GroupBox5: TGroupBox;
+    GroupBox6: TGroupBox;
+    lblHIGHLIGHT2: TLabel;
+    lblHIGHLIGHT: TLabel;
     Label2: TLabel;
     Label3: TLabel;
     Label4: TLabel;
@@ -55,6 +59,7 @@ type
     Panel5: TPanel;
     pmColors: TPopupMenu;
     procedure btnFontClick(Sender: TObject);
+    procedure btnHCOLORClick(Sender: TObject);
     procedure btnHexFontClick(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure cbColorGroupChange(Sender: TObject);
@@ -87,7 +92,7 @@ type
     procedure setjlSpacing(s: integer);
     procedure applyfont;
   public
-    { public declarations }
+    highlightcolor: TColor;
     colors: TDisassemblerViewColors;
     property hexSpaceBetweenLines: integer read fhexspaceBetweenLines write setHexSpaceBetweenLines;
     property spaceAboveLines: integer read fspaceAboveLines write setSpaceAboveLines;
@@ -100,7 +105,7 @@ implementation
 
 { TfrmMemviewPreferences }
 
-uses MemoryBrowserFormUnit;
+uses MemoryBrowserFormUnit,ContrastColorPicker;
 
 resourcestring
   rsBackgroundColor = 'Background color';
@@ -198,7 +203,6 @@ begin
   oldstate:=csUndefined;
   cbColorGroupChange(cbColorGroup);
 
-  //
   cbi.cbSize:=sizeof(cbi);
   if GetComboBoxInfo(cbColorGroup.handle, @cbi) then
     extrasize:=cbi.rcButton.Right-cbi.rcButton.Left+cbi.rcItem.Left
@@ -218,6 +222,9 @@ begin
   btnFont.Constraints.MinWidth:=i;
   cbColorGroup.Constraints.MinWidth:=i;
   btnHexFont.Constraints.MinWidth:=i;
+
+  lblHIGHLIGHT.Color:=highlightcolor;
+  lblHIGHLIGHT2.Color:=highlightcolor;
 end;
 
 procedure TfrmMemviewPreferences.GroupBox1Click(Sender: TObject);
@@ -350,6 +357,20 @@ begin
 
     cbColorGroupChange(cbColorGroup);
   end;
+end;
+
+procedure TfrmMemviewPreferences.btnHCOLORClick(Sender: TObject);
+var picker:TColorContrastPicker;
+begin
+    picker:=TColorContrastPicker.Create(self);
+    picker.CurrentHighlightColor:=HighLightColor;
+    if(mrOK=picker.ShowModal)then
+    begin
+      highlightcolor:=picker.CurrentHighlightColor;
+      lblHIGHLIGHT.Color:=HighLightColor;
+      lblHIGHLIGHT2.Color:=HighLightColor;
+    end;
+    picker.Free;
 end;
 
 procedure TfrmMemviewPreferences.btnHexFontClick(Sender: TObject);

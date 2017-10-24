@@ -479,8 +479,6 @@ type
     memorystring: array of string;
     lengthof8bytes: Integer;
 
-//        x:tno
-
     lines: integer;
     oldlines: integer;
     Highlightcolor: Tcolor;
@@ -1213,6 +1211,7 @@ end;
 procedure TMemoryBrowser.miSetHighlightColorClick(Sender: TObject);
 var cpicker:TColorContrastPicker;
   r:integer;
+  reg:TRegistry;
 begin
     cpicker:=TColorContrastPicker.Create(self);
     cpicker.CurrentHighlightColor:=self.Highlightcolor;
@@ -1220,7 +1219,14 @@ begin
     if(r=mrOK)then
     begin
       self.Highlightcolor:=cpicker.CurrentHighlightColor;
-      self.Repaint;
+      self.miSetAddressClick(nil);
+      reg:=Tregistry.Create;
+      try
+        if(reg.OpenKey('\Software\Cheat Engine\Memoryviewer',true))then
+            reg.WriteInteger('HighlightColor',Highlightcolor);
+      except
+      end;
+      reg.Free;
     end;
     cpicker.free;
 end;
@@ -1817,13 +1823,14 @@ end;
 
 procedure TMemoryBrowser.miTextPreferencesClick(Sender: TObject);
 var
-  x: TfrmMemviewPreferences;
+  pref: TfrmMemviewPreferences;
   i: TDisassemblerViewColorsState;
   reg: tregistry;
   fd: TFontData;
 begin
 
-  with TfrmMemviewPreferences.create(self) do
+  pref:=TfrmMemviewPreferences.create(self);
+  with pref do
   begin
     fd:=Graphics.GetFontData(disassemblerview.font.handle);
     fontdialog1.font.Name:=fd.Name;
@@ -1835,7 +1842,7 @@ begin
     fontdialog1.font.Orientation:=fd.Orientation;
 
     btnFont.Caption:=fontdialog1.Font.Name+' '+inttostr(fontdialog1.Font.Size);
-
+    pref.highlightcolor:=self.Highlightcolor;
 
 
     //FontDialog2.Font.Assign(hexview.HexFont);
@@ -1884,6 +1891,7 @@ begin
       hexview.spaceBetweenLines:=hexSpaceBetweenLines;
       hexview.statusbar.Visible:=cbShowStatusBar.checked;
       hexview.OnResize(hexview);
+      self.Highlightcolor:=pref.highlightcolor;
     end;
     free;
   end;
@@ -1918,6 +1926,8 @@ begin
     if reg.OpenKey('\Software\Cheat Engine\Hexview\Font',true) then
       SaveFontToRegistry(hexview.hexfont, reg);
 
+    if(reg.OpenKey('\Software\Cheat Engine\Memoryviewer',true))then
+        reg.WriteInteger('HighlightColor',Highlightcolor);
 
   finally
     reg.free;
@@ -2087,6 +2097,13 @@ begin
       hexview.hexfont:=f;
     end;
 
+    Highlightcolor:=clAqua;
+    if reg.OpenKey('\Software\Cheat Engine\Memoryviewer',false) then
+    begin
+      if(reg.ValueExists('HighlightColor'))then
+        Highlightcolor:=reg.ReadInteger('HighlightColor');
+    end;
+
 
   finally
     f.free;
@@ -2102,8 +2119,6 @@ begin
 
   memoryaddress:=$00400000;
   memorylabelcount:=0;
-
-  Highlightcolor:=clAqua;
 
   disassemblerHistory:=TStringList.create;
   memorybrowserHistory:=TStringList.create;

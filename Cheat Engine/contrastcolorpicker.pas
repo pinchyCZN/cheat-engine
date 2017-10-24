@@ -17,6 +17,7 @@ type
     btnCUSTOM: TButton;
     cbCOLORS: TComboBox;
     ColorDialog1: TColorDialog;
+    Label1: TLabel;
     lblCONTRAST1: TLabel;
     lblCONTRAST2: TLabel;
     lblCONTRAST3: TLabel;
@@ -48,8 +49,11 @@ type TColorEntry=record
     val:integer;
     name:string;
 end;
-const standard_colors:array[0..22] of TColorEntry =(
+const standard_colors:array[0..25] of TColorEntry =(
 (val:clBlack;           name:'#000000';),
+(val:clNone;            name:'None';),
+(val:clHighlight;       name:'Highlight';),
+(val:clHotLight;        name:'HotLight';),
 (val:clBlack;			name:'Black';),
 (val:clMaroon;			name:'Maroon';),
 (val:clGreen;			name:'Green';),
@@ -108,8 +112,18 @@ begin
   result:=get_contrast(getL(color_a),getL(color_b));
 end;
 
+function GetConvertedColor(c:TColor):TColor;
+begin
+  result:=c;
+  case c of
+    clNone:begin result:=GetSysColor(COLOR_3DFACE); end;
+    clHotLight:begin result:=GetSysColor(COLOR_HOTLIGHT); end;
+    clHighlight: begin result:=GetSysColor(COLOR_HIGHLIGHT); end;
+  end;
+end;
+
 procedure TColorContrastPicker.UpdateContrasts;
-var t_color,bg_color,r_color:TColor;
+var t_color,bg_color,r_color,converted_color:TColor;
   f:double;
   function get_str(val:double):string;
   begin
@@ -120,17 +134,18 @@ begin
     lbl3.Font.Color:=clRed;
     lbl4.Font.Color:=clRed;
     lbl4.Color:=CurrentHighlightColor;
+    converted_color:=GetConvertedColor(CurrentHighlightColor);
 
     t_color:=GetSysColor(COLOR_WINDOWTEXT);
     bg_color:=GetSysColor(COLOR_3DFACE);
     r_color:=clRed;
     f:=GetContrast(t_color,bg_color);
     lblCONTRAST1.Caption:=get_str(f);
-    f:=GetContrast(t_color,CurrentHighlightColor);
+    f:=GetContrast(t_color,converted_color);
     lblCONTRAST2.Caption:=get_str(f);
     f:=GetContrast(r_color,bg_color);
     lblCONTRAST3.Caption:=get_str(f);
-    f:=GetContrast(r_color,CurrentHighlightColor);
+    f:=GetContrast(r_color,converted_color);
     lblCONTRAST4.Caption:=get_str(f);
 end;
 
@@ -149,7 +164,7 @@ begin
       end;
   end;
   cbCOLORS.ItemIndex:=0;
-  cbCOLORS.Items.Strings[0]:=Format('#%.6X',[CurrentHighlightColor]);
+  cbCOLORS.Items.Strings[0]:=Format('BGR=#%.6X',[CurrentHighlightColor]);
   cbCOLORS.Items.Objects[0]:=Pointer(CurrentHighlightColor);
 end;
 

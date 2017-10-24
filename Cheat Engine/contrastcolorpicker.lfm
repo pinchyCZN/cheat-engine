@@ -63,7 +63,7 @@ object ColorContrastPicker: TColorContrastPicker
     ParentColor = False
   end
   object cbCOLORS: TComboBox
-    Left = 112
+    Left = 200
     Height = 21
     Top = 136
     Width = 124
@@ -113,6 +113,14 @@ object ColorContrastPicker: TColorContrastPicker
     Caption = 'lblCONTRAST4'
     ParentColor = False
   end
+  object Label1: TLabel
+    Left = 152
+    Height = 13
+    Top = 136
+    Width = 27
+    Caption = 'Color:'
+    ParentColor = False
+  end
   object ColorDialog1: TColorDialog
     Color = clBlack
     CustomColors.Strings = (
@@ -137,7 +145,7 @@ object ColorContrastPicker: TColorContrastPicker
       'ColorS=F0FBFF'
       'ColorT=A4A0A0'
     )
-    left = 288
-    top = 128
+    left = 392
+    top = 16
   end
 end
