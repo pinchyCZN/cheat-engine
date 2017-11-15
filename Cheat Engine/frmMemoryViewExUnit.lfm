@@ -22,6 +22,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
     Color = clBlack
     ParentColor = False
     TabOrder = 0
+    OnClick = Panel1Click
   end
   object Panel2: TPanel
     Left = 690
@@ -163,10 +164,31 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Width = 17
       Anchors = [akTop, akLeft, akBottom]
       Kind = sbVertical
-      Max = 1000
+      Max = 50000
       PageSize = 0
       TabOrder = 4
       OnChange = sbVERTChange
+      OnKeyDown = sbVERTKeyDown
+    end
+    object btnMEMMAP: TButton
+      Left = 40
+      Height = 25
+      Hint = 'Current memory size of visible screen, press to set scroll size to match this as closely as possible'
+      Top = 232
+      Width = 101
+      Caption = 'Fetch memory map'
+      OnClick = btnMEMMAPClick
+      ParentShowHint = False
+      ShowHint = True
+      TabOrder = 5
+    end
+    object pbMEM: TPaintBox
+      Left = 16
+      Height = 200
+      Top = 160
+      Width = 16
+      Anchors = [akTop, akLeft, akBottom]
+      OnPaint = pbMEMPaint
     end
   end
   object Panel3: TPanel
@@ -307,7 +329,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Height = 13
       Top = 16
       Width = 48
-      Anchors = [akRight, akBottom]
+      Anchors = [akLeft, akBottom]
       AutoSize = False
       Caption = 'Address:'
       ParentColor = False
@@ -317,7 +339,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Height = 21
       Top = 16
       Width = 128
-      Anchors = [akRight, akBottom]
+      Anchors = [akLeft, akBottom]
       OnKeyDown = edtAddressKeyDown
       TabOrder = 5
     end
@@ -329,7 +351,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Max = 512
       OnChange = tbZoomChange
       Position = 0
-      Anchors = [akRight, akBottom]
+      Anchors = [akLeft, akBottom]
       TabOrder = 6
     end
     object lblZOOM: TLabel
@@ -337,7 +359,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Height = 13
       Top = 80
       Width = 80
-      Anchors = [akRight, akBottom]
+      Anchors = [akLeft, akBottom]
       AutoSize = False
       Caption = 'Zoom:'
       ParentColor = False

@@ -46,9 +46,15 @@ type
     constructor create(suspended: boolean);
   end;
 
+  TMemEntry = record
+    address:PtrUInt;
+    size:integer;
+  end;
+
   { TfrmMemoryViewEx }
 
   TfrmMemoryViewEx = class(TForm)
+    btnMEMMAP: TButton;
     cbAddresslist: TComboBox;
     cbAddresslistOnly: TCheckBox;
     cbColor: TComboBox;
@@ -62,6 +68,7 @@ type
     Label3: TLabel;
     lblZOOM: TLabel;
     lblAddress: TLabel;
+    pbMEM: TPaintBox;
     Panel1: TPanel;
     Panel2: TPanel;
     Panel3: TPanel;
@@ -72,6 +79,7 @@ type
     sbVERT: TScrollBar;
     tbPitch: TTrackBar;
     tbZoom: TTrackBar;
+    procedure btnMEMMAPClick(Sender: TObject);
     procedure cbAddresslistChange(Sender: TObject);
     procedure cbAddresslistOnlyChange(Sender: TObject);
     procedure cbAddresslistDropDown(Sender: TObject);
@@ -86,7 +94,10 @@ type
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure Panel1Click(Sender: TObject);
+    procedure pbMEMPaint(Sender: TObject);
     procedure sbVERTChange(Sender: TObject);
+    procedure sbVERTKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure tbPitchChange(Sender: TObject);
     procedure tbZoomChange(Sender: TObject);
 
@@ -101,6 +112,7 @@ type
     datasource: TMemoryDataSource;
     history: TStringList;
     showing_help:boolean;
+    mem_map:TList;
     procedure Panel1DblClick(Sender: TObject);
     function getCompareMethod: TMVCompareMethod;
     function ondata(newAddress: ptruint; PreferedMinimumSize: integer; var newbase: pointer; var newsize: integer): boolean;
@@ -108,6 +120,7 @@ type
     procedure UpdateAddress(val:PtrUInt);
     procedure UpdateZoomBar(val:single);
     procedure UpdateScrollbar(val:PtrUInt);
+    procedure ClearMemMap;
   public
     md: TMemDisplay;
     procedure DisplayHelp;
@@ -359,6 +372,7 @@ procedure TfrmMemoryViewEx.FormCreate(Sender: TObject);
 begin
   //create a datasource thread
   history:=tstringlist.create;
+  mem_map:=Tlist.Create;
 
   datasource:=TMemoryDataSource.create(true); //possible to add multiple readers in the future
 
@@ -369,6 +383,7 @@ begin
   md.OnMouseMove:=mdMouseMove;
   md.OnMouseWheel:=mdMouseWheel;
   md.OnDblClick:=Panel1DblClick;
+  md.OnClick:=Panel1Click;
   md.setPitch(1024);
   md.zoom:=1;
   UpdateZoomBar(md.zoom);
@@ -388,6 +403,20 @@ begin
   datasource.Start;
 end;
 
+procedure TfrmMemoryViewEx.ClearMemMap;
+var i:integer;
+  entry:^TMemEntry;
+begin
+  if(not Assigned(mem_map))then
+    exit;
+  for i:=0 to mem_map.Count-1 do
+  begin
+    entry:=mem_map[i];
+    Dispose(entry);
+  end;
+  mem_map.Clear;
+end;
+
 procedure TfrmMemoryViewEx.FormDestroy(Sender: TObject);
 begin
   if datasource<>nil then
@@ -396,6 +425,7 @@ begin
     datasource.WaitFor;
     freeandnil(datasource);
   end;
+  ClearMemMap;
 end;
 
 procedure TfrmMemoryViewEx.FormKeyDown(Sender: TObject; var Key: Word;
@@ -411,7 +441,62 @@ begin
     end;
   end
   else if(key=VK_ESCAPE)then
-    self.close;
+    self.close
+  else if(key=VK_F5)then
+    edtAddress.SetFocus
+  else if(key=Ord('g'))then
+  begin
+    if(ssCtrl in Shift)then
+        edtAddress.SetFocus;
+  end;
+end;
+
+procedure TfrmMemoryViewEx.Panel1Click(Sender: TObject);
+begin
+  sbVERT.SetFocus;
+end;
+
+procedure TfrmMemoryViewEx.pbMEMPaint(Sender: TObject);
+var i:integer;
+  entry:^TMemEntry;
+  max,a,b:Double;
+  y,y2,tmp,w:integer;
+  lasty,lasty2:integer;
+begin
+    if(not Assigned(mem_map))then
+        exit;
+    max:=High(UINT);
+    if(processhandler.is64Bit)then
+        max:=High(PtrUint);
+    max:=max / pbMEM.Height;
+    if(max=0)then
+        exit;
+    lasty:=-1;
+    lasty2:=-1;
+    pbMEM.Canvas.Brush.Color:=clDefault;
+    pbMEM.Canvas.Clear;
+    pbMEM.Canvas.Brush.Color:=clRed;
+    w:=pbMEM.Width;
+    for i:=0 to mem_map.Count-1 do
+    begin
+        entry:=mem_map[i];
+        a:=entry.address;
+        b:=a / max;
+        y:=Trunc(b);
+        b:=(a+entry.size)/max;
+        y2:=trunc(b);
+        if(y=lasty)then
+        begin
+          if(y2=lasty2)then
+            continue;
+        end;
+        tmp:=y2;
+        if(y2=y)then
+            tmp:=y+1;
+        pbMEM.Canvas.FillRect(0,y,w,tmp);
+        lasty:=y;
+        lasty2:=y2;
+    end;
 end;
 
 procedure TfrmMemoryViewEx.sbVERTChange(Sender: TObject);
@@ -434,6 +519,103 @@ begin
   UpdateAddress(x);
 end;
 
+procedure TfrmMemoryViewEx.sbVERTKeyDown(Sender: TObject; var Key: Word;
+  Shift: TShiftState);
+var i:integer;
+  start_address,end_address,next_address,delta:PtrUInt;
+  entry:^TMemEntry;
+  found:boolean;
+  next:boolean;
+  function is_range_valid(a,b:PtrUInt):boolean;
+  var i:integer;
+  begin
+    result:=false;
+    for i:=0 to mem_map.Count-1 do
+    begin
+        entry:=mem_map[i];
+        if(entry.address >= a)then
+        begin
+            if((entry.address+entry.size) <= b)then
+            begin
+              result:=true;
+              break;
+            end;
+        end;
+    end;
+  end;
+
+begin
+  if(not(key in [VK_NEXT,VK_PRIOR,VK_LEFT,VK_RIGHT,VK_UP,VK_DOWN]))then
+    exit;
+  if(not assigned(mem_map))then
+    exit;
+  if(mem_map.Count=0)then
+    exit;
+
+
+
+  start_address:=md.getAddressFromScreenPosition(0,0);
+  end_address:=md.getAddressFromScreenPosition(0,md.Height-1);
+  if(is_range_valid(start_address,end_address))then
+    exit;
+
+  delta:=end_address-start_address;
+  case key of
+      VK_RIGHT,VK_DOWN: delta:=delta div 8;
+      VK_LEFT,VK_UP: delta:=-delta div 8;
+      VK_NEXT: delta:=(delta*7) div 8;
+      VK_PRIOR: delta:=-(delta*7) div 8;
+  end;
+  next_address:=start_address+delta;
+  if(next_address < delta)then
+    delta:=-next_address;
+  start_address:=start_address+delta;
+  end_address:=end_address+delta;
+
+  next_address:=start_address;
+  found:=false;
+  next:=false;
+  if(key in [VK_NEXT,VK_RIGHT,VK_DOWN])then
+    next:=true;
+
+  if(next)then
+  begin
+      for i:=0 to mem_map.Count-1 do
+      begin
+        entry:=mem_map[i];
+        if(entry.address>end_address)then
+        begin
+            next_address:=entry.address;
+            found:=true;
+            break;
+        end;
+      end;
+  end
+  else
+  begin
+      for i:=mem_map.Count-1 downto 0 do
+      begin
+        entry:=mem_map[i];
+        if(entry.address<start_address)then
+        begin
+            next_address:=entry.address;
+            found:=true;
+            break;
+        end;
+      end;
+      if(not found)then
+        next_address:=0;
+  end;
+  if(found)then
+  begin
+      md.MoveTo(0,0);
+      md.setPointer(next_address);
+      UpdateAddress(next_address);
+      UpdateScrollbar(next_address);
+      key:=0;
+  end;
+end;
+
 procedure TfrmMemoryViewEx.cbAddresslistOnlyChange(Sender: TObject);
 begin
   cbAddresslist.enabled:=cbAddresslistOnly.checked;
@@ -450,6 +632,52 @@ begin
     datasource.setaddresslist(cbAddresslistOnly.checked, 'TMP')
   else
     datasource.setaddresslist(cbAddresslistOnly.checked, cbAddresslist.text);
+end;
+
+procedure TfrmMemoryViewEx.btnMEMMAPClick(Sender: TObject);
+var
+  mbi : _MEMORY_BASIC_INFORMATION;
+  address: PtrUInt;
+  mappedfilename: string;
+  kernelmode: boolean=false;
+  entry:^TMemEntry;
+begin
+  if(not Assigned(md))then
+    exit;
+  if(not Assigned(mem_map))then
+    exit;
+
+  if DBKLoaded then
+    kernelmode:=ssCtrl in GetKeyShiftState;
+
+  ClearMemMap;
+
+  address:=0;
+  mbi.RegionSize:=$1000;
+  while (GetRegionInfo(processhandle,pointer(address),mbi,sizeof(mbi), mappedfilename)<>0) and ((address+mbi.RegionSize)>address) do
+  begin
+    if(mbi.State=MEM_COMMIT)then
+    begin
+      New(entry);
+      entry.address:=address;
+      entry.size:=mbi.RegionSize;
+      mem_map.Add(Pointer(entry));
+    end;
+
+    inc(address,mbi.RegionSize);
+    if not kernelmode then
+    begin
+      if processhandler.is64Bit then
+      begin
+        {$IFDEF CPU64}
+        if (address>=QWORD($8000000000000000)) then exit;
+        {$ENDIF}
+      end
+      else
+        if (address>=$80000000) then exit;
+    end;
+  end;
+  pbMEM.Repaint;
 end;
 
 procedure TfrmMemoryViewEx.cbAddresslistDropDown(Sender: TObject);
@@ -566,6 +794,8 @@ end;
 
 procedure TfrmMemoryViewEx.edtPitchChange(Sender: TObject);
 var newpitch: integer;
+    cb:TNotifyEvent;
+    x:integer;
 begin
   try
     newpitch:=strtoint(edtpitch.Caption);
@@ -573,22 +803,36 @@ begin
     edtPitch.Font.Color:=clDefault;
     if(md.fPitch <> newpitch)then
     begin
+      cb:=edtPitch.OnChange;
       edtPitch.OnChange:=nil;
       edtPitch.Caption:=IntToStr(md.fPitch);
-      edtPitch.OnChange:=edtPitchChange;
+      edtPitch.OnChange:=cb;
     end;
     md.render;
+    cb:=tbPitch.OnChange;
+    tbPitch.OnChange:=nil;
+    x:=md.fPitch;
+    if(x>tbPitch.Max)then
+        x:=tbPitch.Max;
+    tbPitch.Position:=x;
+    tbPitch.OnChange:=cb;
   except
     edtPitch.Font.Color:=clred;
   end;
 end;
 
 procedure TfrmMemoryViewEx.tbPitchChange(Sender: TObject);
+var cb:TNotifyEvent;
+    pos:integer;
 begin
+  cb:=edtPitch.OnChange;
   edtPitch.OnChange:=nil;
-  edtPitch.caption:=inttostr(tbPitch.position);
-  edtPitch.OnChange:=edtPitchChange;
-  md.setPitch(tbPitch.position);
+  pos:=tbPitch.position;
+  if((GetKeyState(VK_CONTROL) and $8000) <> 0)then
+    pos:=pos*10;
+  edtPitch.caption:=inttostr(pos);
+  edtPitch.OnChange:=cb;
+  md.setPitch(pos);
   md.render;
 end;
 
@@ -600,14 +844,14 @@ end;
 procedure TfrmMemoryViewEx.UpdateZoomBar(val:single);
 var i:integer;
 begin
-  if(val<1)then
+  if(val<=1)then
   begin
     i:=Round(val*256);
     tbZoom.Position:=i
   end
   else
   begin
-    i:=Round(val+256);
+    i:=Round(((val-1)*8)+256);
     tbZoom.Position:=i;
   end;
 end;
@@ -619,8 +863,10 @@ begin
     i:=tbZoom.Position;
     if(i>256)then
     begin
-        i:=i-256;
-        md.zoom:=i;
+        tmp:=i-256;
+        tmp:=tmp/8;
+        tmp:=tmp+1;
+        md.zoom:=tmp;
     end
     else
     begin
@@ -635,6 +881,7 @@ end;
 procedure TfrmMemoryViewEx.UpdateScrollbar(val:PtrUInt);
 var y:double;
     x:Qword;
+    cb:TNotifyEvent;
 begin
     if(not Assigned(processhandler))then
       exit;
@@ -643,7 +890,10 @@ begin
       x:=-1;
     y:=val/x;
     y:=Abs(y*sbVERT.Max);
+    cb:=sbVERT.OnChange;
+    sbVERT.OnChange:=nil;
     sbVERT.Position:=Round(y);
+    sbVERT.OnChange:=cb;
 end;
 
 procedure TfrmMemoryViewEx.UpdateAddress(val:PtrUInt);
@@ -750,7 +1000,7 @@ begin
     oldy:=(fYpos+(MousePos.y))/fZoom;
     if WheelDelta>0 then
     begin
-      if fzoom<256 then
+      if(fzoom<=32)then
       begin
         //zoom in
         //get the pixel at center of the screen
@@ -766,7 +1016,7 @@ begin
     end
     else if WheelDelta<0 then
     begin
-      if fZoom>0.2 then
+      if(fZoom>0.2)then
       begin
         //zoom out
         if ssShift in Shift then
@@ -830,11 +1080,15 @@ begin
     s:=Format(#13#10'xpos=%d ypos=%d'#13#10+
                     'pixelsize=%d'#13#10+
                     'size=%.8X'#13#10+
-                    'addr=%.8X'#13#10,
+                    'addr=%.8X'#13#10+
+                    'win width=%d'#13#10+
+                    'win height=%d'#13#10,
                     [md.fXpos,md.fYpos,
                     md.fPixelByteSize,
                     md.size,
-                    md.address]);
+                    md.address,
+                    Panel1.Width,
+                    Panel1.Height]);
     msg:=msg+s;
     MessageBox(self.Handle,PAnsiChar(msg),'MV HELP',MB_OK or MB_SYSTEMMODAL);
 end;
