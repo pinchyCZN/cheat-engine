@@ -522,7 +522,7 @@ end;
 procedure TfrmMemoryViewEx.sbVERTKeyDown(Sender: TObject; var Key: Word;
   Shift: TShiftState);
 var i:integer;
-  start_address,end_address,next_address,delta:PtrUInt;
+  start_address,end_address,next_address:PtrUInt;
   entry:^TMemEntry;
   found:boolean;
   next:boolean;
@@ -535,13 +535,52 @@ var i:integer;
         entry:=mem_map[i];
         if(entry.address >= a)then
         begin
+            if(entry.address <= b)then
+            begin
+              result:=true;
+              break;
+            end;
+        end;
+        if((entry.address+entry.size) >= a)then
+        begin
             if((entry.address+entry.size) <= b)then
             begin
               result:=true;
               break;
             end;
         end;
+        if(a >= entry.address)then
+        begin
+          if(b <= (entry.address+entry.size))then
+          begin
+            result:=true;
+            break;
+          end;
+        end;
     end;
+  end;
+  procedure do_normal_scroll;
+  var delta:PtrUInt;
+    a,b,c:LongWord;
+  begin
+    if(processhandler.is64Bit)then
+    begin
+        delta:=end_address-start_address;
+    end
+    else
+    begin
+      a:=start_address;
+      b:=end_address;
+      c:=b-a;
+      delta:=c;
+    end;
+    case key of
+        VK_RIGHT,VK_DOWN: delta:=delta div 4;
+        VK_LEFT,VK_UP: delta:=-delta div 4;
+        VK_NEXT: delta:=(delta*15) div 16;
+        VK_PRIOR: delta:=-(delta*15) div 16;
+    end;
+    next_address:=start_address+delta;
   end;
 
 begin
@@ -549,63 +588,74 @@ begin
     exit;
   if(not assigned(mem_map))then
     exit;
-  if(mem_map.Count=0)then
-    exit;
 
-
+  found:=false;
 
   start_address:=md.getAddressFromScreenPosition(0,0);
   end_address:=md.getAddressFromScreenPosition(0,md.Height-1);
-  if(is_range_valid(start_address,end_address))then
-    exit;
 
-  delta:=end_address-start_address;
-  case key of
-      VK_RIGHT,VK_DOWN: delta:=delta div 8;
-      VK_LEFT,VK_UP: delta:=-delta div 8;
-      VK_NEXT: delta:=(delta*7) div 8;
-      VK_PRIOR: delta:=-(delta*7) div 8;
-  end;
-  next_address:=start_address+delta;
-  if(next_address < delta)then
-    delta:=-next_address;
-  start_address:=start_address+delta;
-  end_address:=end_address+delta;
-
-  next_address:=start_address;
-  found:=false;
-  next:=false;
-  if(key in [VK_NEXT,VK_RIGHT,VK_DOWN])then
-    next:=true;
-
-  if(next)then
+  if(is_range_valid(start_address,end_address) or (mem_map.Count=0))then
   begin
-      for i:=0 to mem_map.Count-1 do
-      begin
-        entry:=mem_map[i];
-        if(entry.address>end_address)then
-        begin
-            next_address:=entry.address;
-            found:=true;
-            break;
-        end;
-      end;
+      do_normal_scroll;
+      found:=true;
   end
   else
   begin
-      for i:=mem_map.Count-1 downto 0 do
+      next_address:=start_address;
+      next:=false;
+      if(key in [VK_NEXT,VK_RIGHT,VK_DOWN])then
+        next:=true;
+
+      if(next)then
       begin
-        entry:=mem_map[i];
-        if(entry.address<start_address)then
-        begin
-            next_address:=entry.address;
+          for i:=0 to mem_map.Count-1 do
+          begin
+            entry:=mem_map[i];
+            if(entry.address>end_address)then
+            begin
+                next_address:=entry.address;
+                found:=true;
+                break;
+            end;
+          end;
+          if(not found)then
+          begin
+            if(mem_map.Count>0)then
+            begin
+                entry:=mem_map[0];
+                next_address:=entry.address;
+            end
+            else
+                do_normal_scroll;
             found:=true;
-            break;
-        end;
+          end;
+      end
+      else
+      begin
+          for i:=mem_map.Count-1 downto 0 do
+          begin
+            entry:=mem_map[i];
+            if((entry.address+entry.size)<start_address)then
+            begin
+                next_address:=entry.address+entry.size;
+                found:=true;
+                break;
+            end;
+          end;
+          if(not found)then
+          begin
+            if(mem_map.Count>0)then
+            begin
+              entry:=mem_map[mem_map.Count-1];
+              next_address:=entry.address;
+            end
+            else
+                next_address:=0;
+            found:=true;
+          end;
       end;
-      if(not found)then
-        next_address:=0;
   end;
+
   if(found)then
   begin
       md.MoveTo(0,0);
