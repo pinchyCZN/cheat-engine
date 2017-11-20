@@ -582,19 +582,24 @@ var j,k,l: integer;
 
     groupdata: PGroupAddress;
 begin
-  if i=qword(-1) then exit;
+  result:=0;
 
-
+  if(i=qword(-1))then
+    exit;
 
   extra:=0;
   value:='';
-  result:=0;
   groupdata:=nil;
 
   currentaddress:=GetAddressOnly(i,extra, @groupdata);
 
   result:=currentaddress;
   j:=i-addresslistfirst;
+
+  if(j>=Length(valuelist))then
+    exit;
+  if(j<0)then
+    exit;
 
   if valuelist[j]='' then
   begin
