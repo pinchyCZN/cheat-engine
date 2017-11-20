@@ -10,6 +10,8 @@ object frmMemoryViewEx: TfrmMemoryViewEx
   OnCreate = FormCreate
   OnDestroy = FormDestroy
   OnKeyDown = FormKeyDown
+  OnResize = FormResize
+  OnShow = FormShow
   Position = poScreenCenter
   LCLVersion = '1.6.4.0'
   object Panel1: TPanel

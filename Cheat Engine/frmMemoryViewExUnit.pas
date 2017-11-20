@@ -94,7 +94,10 @@ type
     procedure FormCreate(Sender: TObject);
     procedure FormDestroy(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure FormResize(Sender: TObject);
+    procedure FormShow(Sender: TObject);
     procedure Panel1Click(Sender: TObject);
+    procedure Panel3Resize(Sender: TObject);
     procedure pbMEMPaint(Sender: TObject);
     procedure sbVERTChange(Sender: TObject);
     procedure sbVERTKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -110,7 +113,6 @@ type
     buf: pbytearray;
     bufsize: integer;
     datasource: TMemoryDataSource;
-    history: TStringList;
     showing_help:boolean;
     mem_map:TList;
     procedure Panel1DblClick(Sender: TObject);
@@ -121,6 +123,7 @@ type
     procedure UpdateZoomBar(val:single);
     procedure UpdateScrollbar(val:PtrUInt);
     procedure ClearMemMap;
+    procedure MDResize;
   public
     md: TMemDisplay;
     procedure DisplayHelp;
@@ -371,7 +374,6 @@ end;
 procedure TfrmMemoryViewEx.FormCreate(Sender: TObject);
 begin
   //create a datasource thread
-  history:=tstringlist.create;
   mem_map:=Tlist.Create;
 
   datasource:=TMemoryDataSource.create(true); //possible to add multiple readers in the future
@@ -386,21 +388,52 @@ begin
   md.OnClick:=Panel1Click;
   md.setPitch(1024);
   md.zoom:=1;
+  md.Align:=alClient;
+  md.parent:=panel1;
+
+  bufsize:=panel1.Height*md.pitch;
+  getmem(buf,bufsize);
+
+  datasource.setRegion(MemoryBrowser.hexview.Address and ptruint(not $FFF), buf, bufsize);
+  md.setPointer(MemoryBrowser.hexview.Address and ptruint(not $FFF), buf, bufsize);
+
   UpdateZoomBar(md.zoom);
   UpdateZoomText(md.zoom);
   UpdateAddress(md.address);
   edtPitch.Text:=IntTostr(md.pitch);
   tbPitch.Position:=md.pitch;
 
-  getmem(buf,4096);
-  bufsize:=4096;
-
-  datasource.setRegion(MemoryBrowser.hexview.Address and ptruint(not $FFF), buf, bufsize);
-  md.setPointer(MemoryBrowser.hexview.Address and ptruint(not $FFF), buf, bufsize);
-  md.Align:=alClient;
-  md.parent:=panel1;
-
   datasource.Start;
+end;
+
+procedure TfrmMemoryViewEx.MDResize;
+var psize,newsize: integer;
+  newp:Pointer;
+  a:PtrUInt;
+begin
+  if(not Assigned(md))then
+    exit;
+  if(not Assigned(datasource))then
+    exit;
+
+  psize:=(trunc(md.height / md.zoom)+16)*md.pitch;
+  a:=md.address;
+
+  if(assigned(md.fOnData) and md.fOnData(a,psize,newp,newsize))then
+  begin
+    md.p:=newp;
+    md.size:=newsize;
+  end;
+end;
+
+procedure TfrmMemoryViewEx.FormShow(Sender: TObject);
+begin
+    MDResize;
+end;
+
+procedure TfrmMemoryViewEx.FormResize(Sender: TObject);
+begin
+    MDResize;
 end;
 
 procedure TfrmMemoryViewEx.ClearMemMap;
@@ -454,6 +487,11 @@ end;
 procedure TfrmMemoryViewEx.Panel1Click(Sender: TObject);
 begin
   sbVERT.SetFocus;
+end;
+
+procedure TfrmMemoryViewEx.Panel3Resize(Sender: TObject);
+begin
+
 end;
 
 procedure TfrmMemoryViewEx.pbMEMPaint(Sender: TObject);
@@ -858,7 +896,7 @@ begin
       edtPitch.Caption:=IntToStr(md.fPitch);
       edtPitch.OnChange:=cb;
     end;
-    md.render;
+    MDResize;
     cb:=tbPitch.OnChange;
     tbPitch.OnChange:=nil;
     x:=md.fPitch;
@@ -883,7 +921,7 @@ begin
   edtPitch.caption:=inttostr(pos);
   edtPitch.OnChange:=cb;
   md.setPitch(pos);
-  md.render;
+  MDResize;
 end;
 
 procedure TfrmMemoryViewEx.UpdateZoomText(val:single);
@@ -1131,14 +1169,16 @@ begin
                     'pixelsize=%d'#13#10+
                     'size=%.8X'#13#10+
                     'addr=%.8X'#13#10+
-                    'win width=%d'#13#10+
-                    'win height=%d'#13#10,
+                    'width=%d'#13#10+
+                    'height=%d'#13#10+
+                    'ptr=%p'#13#10,
                     [md.fXpos,md.fYpos,
                     md.fPixelByteSize,
                     md.size,
                     md.address,
-                    Panel1.Width,
-                    Panel1.Height]);
+                    md.Width,
+                    md.Height,
+                    md.p]);
     msg:=msg+s;
     MessageBox(self.Handle,PAnsiChar(msg),'MV HELP',MB_OK or MB_SYSTEMMODAL);
 end;
