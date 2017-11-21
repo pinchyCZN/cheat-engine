@@ -208,6 +208,18 @@ type
     procedure Execute; override;
   end;
 
+type
+  TAutoAttachThread=class(TThread)
+  private
+    fInterval: integer;
+  public
+    CurrentProcessList: TStringList;
+    procedure autoattachcheck;
+    constructor Create(CreateSuspended: boolean);
+    procedure Execute; override;
+  published
+    property Interval: integer read fInterval write fInterval;
+  end;
 
 
 
@@ -849,7 +861,7 @@ type
     procedure updated3dgui;
     procedure RefreshCustomTypes;
 
-    procedure autoattachcheck;
+    procedure autoattachcheck(pl: TStringList = nil); // can be called by AutoAttachTimer or AutoAttachThread
     function openprocessPrologue: boolean;
     procedure openProcessEpilogue(oldprocessname: string; oldprocess: dword;
       oldprocesshandle: dword; autoattachopen: boolean = False);
@@ -912,6 +924,7 @@ type
 var
   MainForm: TMainForm;
   ToggleWindows: TTogglewindows;
+  AutoAttachThread: TAutoAttachThread;
 
 implementation
 
@@ -4376,9 +4389,17 @@ begin
 
 
     if VarType.itemindex=10 then
-      createGroupConfigButton
+    begin
+      createGroupConfigButton;
+      scantype.Visible:=false;
+      lblscantype.Visible:=false;
+    end
     else
+    begin
       destroyGroupConfigButton;
+      scantype.Visible:=true;
+      lblscantype.Visible:=true;
+    end;
 
     UpdateScanType;
 
@@ -7153,7 +7174,9 @@ begin
     Caption := cenorm + ' ' + rsEXPIRED + '!';
 
   if autoattachtimer.Enabled then
-    autoattachcheck;
+    autoattachcheck
+  else
+    AutoAttachThread:=TAutoAttachThread.Create(false);
 
 
 
@@ -8635,12 +8658,40 @@ begin
   end;
 end;
 
-procedure TMainForm.autoattachcheck;
+procedure TAutoAttachThread.autoattachcheck;
+begin
+  MainForm.autoattachcheck(CurrentProcessList);
+end;
+
+constructor TAutoAttachThread.Create(CreateSuspended: boolean);
+begin
+  Interval:=2000;
+  CurrentProcessList:=TStringList.Create;
+  inherited Create(CreateSuspended);
+end;
+
+procedure TAutoAttachThread.Execute;
+begin
+  while not terminated do
+  begin
+    if ((MainForm.autoattachlist = nil) or (formsettings = nil) or (MainForm.extraautoattachlist = nil)) or
+       ((MainForm.autoattachlist.Count+MainForm.extraautoattachlist.Count)<1) or
+       ((not formsettings.cbAlwaysAutoAttach.Checked) and ((processhandle <> 0) or (processid <> 0))) then
+    begin
+      sleep(Interval);
+      continue;
+    end;
+
+    getprocesslist(CurrentProcessList,false,true);
+    synchronize(autoattachcheck);
+    sleep(Interval);
+  end;
+end;
+
+procedure TMainForm.autoattachcheck(pl: TStringList = nil);
 var
-  pl: TStringList;
   i, j, k: integer;
   newPID: dword;
-  pli: PProcessListInfo;
   a: string;
   p: string;
 
@@ -8648,13 +8699,6 @@ var
   oldphandle: thandle;
   attachlist: TStringList;
 begin
-  if (autoattachlist = nil) or (formsettings = nil) or (extraautoattachlist = nil) then
-    exit;
-
-  if (not formsettings.cbAlwaysAutoAttach.Checked) and
-    ((processhandle <> 0) or (processid <> 0)) then
-    exit;
-
   attachlist := TStringList.Create;
   try
     attachlist.AddStrings(autoattachlist);
@@ -8666,8 +8710,11 @@ begin
       //in case there is no processwatcher this timer will be used to enumare the processlist every 2 seconds
 
 
-      pl := TStringList.Create;
-      getprocesslist(pl);
+      if pl=nil then
+      begin
+        pl := TStringList.Create;
+        getprocesslist(pl,false,true);
+      end;
 
       try
         for i := 0 to attachlist.Count - 1 do
@@ -8712,17 +8759,7 @@ begin
         //  pl.IndexOf(autoattachlist.items[i]);
 
       finally
-        for i := 0 to pl.Count - 1 do
-          if pl.Objects[i] <> nil then
-          begin
-            pli := pointer(pl.Objects[i]);
-            if pli.processIcon > 0 then
-              DestroyIcon(pli.processIcon);
-            freemem(pli);
-            pli:=nil;
-          end;
-
-        pl.Free;
+        cleanProcessList(pl);
       end;
 
     end;
@@ -8735,6 +8772,13 @@ end;
 
 procedure TMainForm.AutoAttachTimerTimer(Sender: TObject);
 begin
+  if (autoattachlist = nil) or (formsettings = nil) or (extraautoattachlist = nil) then
+    exit;
+
+  if (not formsettings.cbAlwaysAutoAttach.Checked) and
+    ((processhandle <> 0) or (processid <> 0)) then
+    exit;
+
   autoattachcheck;
 end;
 

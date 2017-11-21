@@ -7,7 +7,8 @@ interface
 uses
   windows, LCLIntf, Messages, SysUtils, Classes, Graphics, Controls, Forms,
   Dialogs,CEFuncProc,imagehlp, StdCtrls, ComCtrls, ExtCtrls, ActnList,
-  Menus, LResources,symbolhandler, FindDialogFix, commonTypeDefs;
+  Menus, LResources,symbolhandler, FindDialogFix, commonTypeDefs, strutils,
+  ProcessHandlerUnit;
 
 type tenumthread=class(tthread)
   public
@@ -43,6 +44,8 @@ type
     procedure FormDestroy(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
     procedure FormShow(Sender: TObject);
+    procedure TreeView1CustomDrawItem(Sender: TCustomTreeView; Node: TTreeNode;
+      State: TCustomDrawState; var DefaultDraw: Boolean);
     procedure TreeView1DblClick(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure FindExecute(Sender: TObject);
@@ -142,6 +145,7 @@ begin
           inc(symbolcount);
           symbolname[symbolcount]:=IntToHex(ptruint(sl.objects[j]),8)+' - '+sl[j];
 
+
           if canceled then break;
 
           if symbolcount=25 then
@@ -233,6 +237,42 @@ begin
 
 end;
 
+procedure TfrmEnumerateDLLs.TreeView1CustomDrawItem(Sender: TCustomTreeView;
+  Node: TTreeNode; State: TCustomDrawState; var DefaultDraw: Boolean);
+var
+    i,j: integer;
+    s: string;
+    a: ptruint;
+    p: pchar;
+    x: ptruint;
+begin
+  defaultdraw:=true;
+  s:=node.text;
+  i:=RPos(' --> ',s);
+  j:=length(s);
+
+  if (i=j-4) then
+  begin
+    i:=pos(' - ',s);
+    s:=copy(s,1,i);
+    try
+      a:=StrToQWordEx('$'+s);
+
+
+      if i>0 then
+      begin
+        getmem(p,128);
+        readprocessmemory(processhandle, pointer(a),p,127,x);
+        p[x]:=#0;
+        node.text:=node.text+p;
+        freemem(p);
+      end;
+
+    except
+    end;
+  end;
+end;
+
 procedure TfrmEnumerateDLLs.TreeView1DblClick(Sender: TObject);
 var address: ptrUint;
     i: integer;
@@ -258,8 +298,21 @@ begin
       address:=StrToQWordEx('$'+s);
       { val('$'+s,address,i); fpc 2.4.1 doesn't handle this correctly }
 
+      i:=pos(' --> ',treeview1.Selected.Text);
+      if i>0 then
+      begin
+        memorybrowser.hexview.Address:=address;
+        s:=copy(treeview1.Selected.Text,i+5,length(treeview1.Selected.Text));
+
+        try
+          memorybrowser.disassemblerview.SelectedAddress:=symhandler.getAddressFromName(s);
+        except
+        end;
+      end
+      else
+        memorybrowser.disassemblerview.SelectedAddress:=address;
      //showmessage('s='+s+' address='+inttohex(address,8));
-      memorybrowser.disassemblerview.SelectedAddress:=address;
+
     end;
   end;
 end;
