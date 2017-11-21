@@ -49,7 +49,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Min = 4
       OnChange = tbPitchChange
       Position = 32
-      TabOrder = 0
+      TabOrder = 1
     end
     object edtPitch: TEdit
       AnchorSideLeft.Control = Label2
@@ -63,7 +63,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       OnChange = edtPitchChange
       ParentShowHint = False
       ShowHint = True
-      TabOrder = 1
+      TabOrder = 0
       Text = '32'
     end
     object Label2: TLabel
@@ -173,11 +173,11 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       OnKeyDown = sbVERTKeyDown
     end
     object btnMEMMAP: TButton
-      Left = 40
+      Left = 32
       Height = 25
       Hint = 'Current memory size of visible screen, press to set scroll size to match this as closely as possible'
       Top = 232
-      Width = 101
+      Width = 114
       Caption = 'Fetch memory map'
       OnClick = btnMEMMAPClick
       ParentShowHint = False
@@ -209,7 +209,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Left = 4
       Height = 17
       Top = 5
-      Width = 160
+      Width = 188
       BorderSpacing.Left = 4
       BorderSpacing.Top = 5
       Caption = 'Only show addresslist memory'
@@ -270,7 +270,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Left = 4
       Height = 17
       Top = 47
-      Width = 99
+      Width = 114
       BorderSpacing.Top = 4
       Caption = 'Compare against'
       OnChange = cbCompareChange
@@ -283,7 +283,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Left = 144
       Height = 51
       Top = 47
-      Width = 39
+      Width = 42
       AutoSize = True
       BorderSpacing.Left = 12
       BorderSpacing.Bottom = 4
@@ -291,13 +291,13 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       ChildSizing.Layout = cclLeftToRightThenTopToBottom
       ChildSizing.ControlsPerLine = 1
       ClientHeight = 51
-      ClientWidth = 39
+      ClientWidth = 42
       TabOrder = 4
       object rbOr: TRadioButton
         Left = 0
         Height = 17
         Top = 0
-        Width = 39
+        Width = 42
         Caption = 'Or'
         Checked = True
         Enabled = False
@@ -309,7 +309,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
         Left = 0
         Height = 17
         Top = 17
-        Width = 39
+        Width = 42
         Caption = 'And'
         Enabled = False
         OnChange = cbSavedListChange
@@ -319,7 +319,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
         Left = 0
         Height = 17
         Top = 34
-        Width = 39
+        Width = 42
         Caption = 'Xor'
         Enabled = False
         OnChange = cbSavedListChange
