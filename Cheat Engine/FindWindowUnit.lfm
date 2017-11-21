@@ -27,7 +27,7 @@ object FindWindow: TFindWindow
     BorderSpacing.Top = 5
     BorderSpacing.Right = 5
     Step = 1
-    TabOrder = 0
+    TabOrder = 2
   end
   object Panel1: TPanel
     AnchorSideLeft.Control = Owner
@@ -43,7 +43,7 @@ object FindWindow: TFindWindow
     BevelOuter = bvNone
     ClientHeight = 110
     ClientWidth = 294
-    TabOrder = 1
+    TabOrder = 0
     object labelType: TLabel
       AnchorSideLeft.Control = Panel1
       AnchorSideTop.Control = Panel1
@@ -61,7 +61,7 @@ object FindWindow: TFindWindow
       AnchorSideLeft.Side = asrBottom
       AnchorSideTop.Control = editStart
       AnchorSideTop.Side = asrCenter
-      Left = 149
+      Left = 160
       Height = 13
       Top = 17
       Width = 23
@@ -73,7 +73,7 @@ object FindWindow: TFindWindow
       AnchorSideTop.Control = EditStop
       AnchorSideTop.Side = asrCenter
       AnchorSideRight.Control = EditStop
-      Left = 159
+      Left = 170
       Height = 13
       Top = 40
       Width = 13
@@ -86,7 +86,7 @@ object FindWindow: TFindWindow
       AnchorSideLeft.Control = editStart
       AnchorSideLeft.Side = asrCenter
       AnchorSideTop.Control = Panel1
-      Left = 197
+      Left = 208
       Height = 13
       Top = 0
       Width = 62
@@ -98,7 +98,7 @@ object FindWindow: TFindWindow
       AnchorSideLeft.Side = asrBottom
       AnchorSideTop.Control = labelArray
       AnchorSideTop.Side = asrBottom
-      Left = 174
+      Left = 185
       Height = 21
       Top = 13
       Width = 109
@@ -114,7 +114,7 @@ object FindWindow: TFindWindow
       AnchorSideTop.Side = asrBottom
       AnchorSideRight.Control = editStart
       AnchorSideRight.Side = asrBottom
-      Left = 174
+      Left = 185
       Height = 21
       Top = 36
       Width = 109
@@ -131,7 +131,7 @@ object FindWindow: TFindWindow
       Left = 3
       Height = 17
       Top = 15
-      Width = 41
+      Width = 45
       BorderSpacing.Left = 3
       Caption = 'Text'
       Checked = True
@@ -145,7 +145,7 @@ object FindWindow: TFindWindow
       Left = 3
       Height = 17
       Top = 34
-      Width = 85
+      Width = 100
       BorderSpacing.Left = 3
       BorderSpacing.Top = 2
       Caption = '(Array of) byte'
@@ -156,10 +156,10 @@ object FindWindow: TFindWindow
       AnchorSideLeft.Side = asrBottom
       AnchorSideTop.Control = editStart
       AnchorSideTop.Side = asrCenter
-      Left = 54
+      Left = 58
       Height = 17
       Top = 15
-      Width = 60
+      Width = 67
       BorderSpacing.Left = 10
       Caption = 'Unicode'
       TabOrder = 3
@@ -175,7 +175,7 @@ object FindWindow: TFindWindow
     Caption = 'OK'
     Default = True
     OnClick = btnOKClick
-    TabOrder = 2
+    TabOrder = 3
   end
   object btnCancel: TButton
     AnchorSideLeft.Side = asrBottom
@@ -190,7 +190,7 @@ object FindWindow: TFindWindow
     Caption = 'Cancel'
     ModalResult = 2
     OnClick = btnCancelClick
-    TabOrder = 3
+    TabOrder = 4
   end
   object scanvalue: TMemo
     Left = 5
@@ -200,16 +200,17 @@ object FindWindow: TFindWindow
     Anchors = [akTop, akLeft, akRight, akBottom]
     OnKeyDown = scanvalueKeyDown
     ScrollBars = ssVertical
-    TabOrder = 4
+    TabOrder = 1
   end
   object gripper: TScrollBar
-    Left = 267
+    Left = 277
     Height = 17
     Top = 150
-    Width = 27
+    Width = 17
     Anchors = [akRight, akBottom]
     PageSize = 0
     TabOrder = 5
+    TabStop = False
   end
   object Timer1: TTimer
     Enabled = False
