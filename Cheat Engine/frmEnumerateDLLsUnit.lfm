@@ -13,7 +13,6 @@ object frmEnumerateDLLs: TfrmEnumerateDLLs
   OnDestroy = FormDestroy
   OnKeyDown = FormKeyDown
   OnShow = FormShow
-  PopupMode = pmAuto
   Position = poScreenCenter
   LCLVersion = '1.6.4.0'
   object Label2: TLabel
@@ -41,6 +40,7 @@ object frmEnumerateDLLs: TfrmEnumerateDLLs
     ReadOnly = True
     RowSelect = True
     TabOrder = 0
+    OnCustomDrawItem = TreeView1CustomDrawItem
     OnDblClick = TreeView1DblClick
     Options = [tvoAutoItemHeight, tvoKeepCollapsedNodes, tvoReadOnly, tvoRowSelect, tvoShowButtons, tvoShowLines, tvoShowRoot, tvoToolTips]
   end
