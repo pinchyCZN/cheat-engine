@@ -221,6 +221,10 @@ begin
     begin
       if(ssCtrl in Shift)then
         scanvalue.SelectAll;
+    end
+    else if(VK_ESCAPE=key)then
+    begin
+      self.Close;
     end;
 end;
 
