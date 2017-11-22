@@ -97,7 +97,6 @@ type
     procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure Panel1Click(Sender: TObject);
-    procedure Panel3Resize(Sender: TObject);
     procedure pbMEMPaint(Sender: TObject);
     procedure sbVERTChange(Sender: TObject);
     procedure sbVERTKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -487,11 +486,6 @@ end;
 procedure TfrmMemoryViewEx.Panel1Click(Sender: TObject);
 begin
   sbVERT.SetFocus;
-end;
-
-procedure TfrmMemoryViewEx.Panel3Resize(Sender: TObject);
-begin
-
 end;
 
 procedure TfrmMemoryViewEx.pbMEMPaint(Sender: TObject);
