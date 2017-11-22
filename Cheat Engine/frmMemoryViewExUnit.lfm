@@ -209,7 +209,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Left = 4
       Height = 17
       Top = 5
-      Width = 188
+      Width = 160
       BorderSpacing.Left = 4
       BorderSpacing.Top = 5
       Caption = 'Only show addresslist memory'
@@ -270,7 +270,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Left = 4
       Height = 17
       Top = 47
-      Width = 114
+      Width = 99
       BorderSpacing.Top = 4
       Caption = 'Compare against'
       OnChange = cbCompareChange
@@ -283,7 +283,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       Left = 144
       Height = 51
       Top = 47
-      Width = 42
+      Width = 39
       AutoSize = True
       BorderSpacing.Left = 12
       BorderSpacing.Bottom = 4
@@ -291,13 +291,13 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       ChildSizing.Layout = cclLeftToRightThenTopToBottom
       ChildSizing.ControlsPerLine = 1
       ClientHeight = 51
-      ClientWidth = 42
+      ClientWidth = 39
       TabOrder = 4
       object rbOr: TRadioButton
         Left = 0
         Height = 17
         Top = 0
-        Width = 42
+        Width = 39
         Caption = 'Or'
         Checked = True
         Enabled = False
@@ -309,7 +309,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
         Left = 0
         Height = 17
         Top = 17
-        Width = 42
+        Width = 39
         Caption = 'And'
         Enabled = False
         OnChange = cbSavedListChange
@@ -319,7 +319,7 @@ object frmMemoryViewEx: TfrmMemoryViewEx
         Left = 0
         Height = 17
         Top = 34
-        Width = 42
+        Width = 39
         Caption = 'Xor'
         Enabled = False
         OnChange = cbSavedListChange

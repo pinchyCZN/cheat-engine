@@ -1136,7 +1136,7 @@ begin
     end
     else if(ssAlt in shift)then
         val:=10;
-    val:=val*WheelDelta;
+    val:=val*(-WheelDelta);
     fYpos:=fYpos+val;
   end;
 
