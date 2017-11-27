@@ -367,4 +367,13 @@ object frmMemoryViewEx: TfrmMemoryViewEx
       ParentColor = False
     end
   end
+  object Gripper: TScrollBar
+    Left = 817
+    Height = 17
+    Top = 465
+    Width = 17
+    Anchors = [akRight, akBottom]
+    PageSize = 0
+    TabOrder = 3
+  end
 end

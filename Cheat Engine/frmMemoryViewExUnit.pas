@@ -77,6 +77,7 @@ type
     rbOr: TRadioButton;
     rbXor: TRadioButton;
     sbVERT: TScrollBar;
+    Gripper: TScrollBar;
     tbPitch: TTrackBar;
     tbZoom: TTrackBar;
     procedure btnMEMMAPClick(Sender: TObject);
@@ -371,6 +372,7 @@ begin
 end;
 
 procedure TfrmMemoryViewEx.FormCreate(Sender: TObject);
+var style:DWORD;
 begin
   //create a datasource thread
   mem_map:=Tlist.Create;
@@ -403,6 +405,9 @@ begin
   tbPitch.Position:=md.pitch;
 
   datasource.Start;
+  style:=GetWindowLong(Gripper.Handle,GWL_STYLE);
+  style:=style or SBS_SIZEGRIP;
+  SetWindowLong(Gripper.Handle,GWL_STYLE,style);
 end;
 
 procedure TfrmMemoryViewEx.MDResize;
