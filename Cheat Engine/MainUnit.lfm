@@ -543,7 +543,6 @@ object MainForm: TMainForm
         Top = 88
         Width = 188
         Anchors = [akTop, akLeft, akRight]
-        AutoSize = True
         BevelOuter = bvNone
         ClientHeight = 56
         ClientWidth = 188
@@ -2209,7 +2208,7 @@ object MainForm: TMainForm
     top = 488
   end
   object AutoAttachTimer: TTimer
-    Enabled = false
+    Enabled = False
     Interval = 2000
     OnTimer = AutoAttachTimerTimer
     left = 416
