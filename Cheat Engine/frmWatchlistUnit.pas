@@ -14,6 +14,7 @@ type
   { TfrmWatchlist }
 
   TfrmWatchlist = class(TForm)
+    wlImageList: TImageList;
     lvWatchlist: TListView;
     MenuItem1: TMenuItem;
     MenuItem2: TMenuItem;
@@ -99,9 +100,8 @@ begin
       begin
 
 
-        t:=integer(lvWatchlist.items[i].Data);
+        t:=integer(ptruint(lvWatchlist.items[i].Data));
         case t of
-          0: vt:=FindTypeOfData(a, @buf[0], 512);
           1: vt:=vtByte;
           2: vt:=vtWord;
           3: vt:=vtDword;
@@ -110,6 +110,8 @@ begin
           6: vt:=vtDouble;
           7: vt:=vtString;
           8: vt:=vtUnicodeString;
+          else
+            vt:=FindTypeOfData(a, @buf[0], 512);
         end;
 
         lvWatchlist.Items[i].subitems[0]:='<'+inttohex(a,8)+'>'+DataToString(@buf[0], 512, vt, true);
@@ -133,12 +135,12 @@ begin
       frmwatchlistAddEntry:=tfrmwatchlistAddEntry.Create(self);
 
     frmwatchlistAddEntry.edtExpression.Text:=li.Caption;
-    frmWatchListAddEntry.rgType.ItemIndex:=integer(li.data);
+    frmWatchListAddEntry.rgType.ItemIndex:=integer(ptruint(li.data));
 
     if frmwatchlistAddEntry.Showmodal=mrok then
     begin
       li.caption:=frmwatchlistAddEntry.edtExpression.Text;
-      li.Data:=pointer(frmWatchListAddEntry.rgType.ItemIndex);
+      li.Data:=pointer(ptruint(frmWatchListAddEntry.rgType.ItemIndex));
     end;
 
     RefreshValues;
@@ -155,7 +157,7 @@ begin
   begin
     li:=lvwatchlist.items.add;
     li.caption:=frmwatchlistAddEntry.edtExpression.Text;
-    li.Data:=pointer(frmWatchListAddEntry.rgType.ItemIndex);
+    li.Data:=pointer(ptruint(frmWatchListAddEntry.rgType.ItemIndex));
     li.SubItems.add('');
   end;
 
@@ -219,7 +221,7 @@ begin
 
       li:=lvWatchlist.Items.Add;
       li.caption:=copy(s[i], 1, rpos(':', s[i])-1);
-      li.data:=pointer(tp);
+      li.data:=pointer(ptruint(tp));
       li.SubItems.add('');
     except
     end;

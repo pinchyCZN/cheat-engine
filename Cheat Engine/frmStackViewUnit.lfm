@@ -1,7 +1,7 @@
 object frmStackView: TfrmStackView
-  Left = 368
+  Left = 714
   Height = 211
-  Top = 522
+  Top = 479
   Width = 374
   BorderStyle = bsSizeToolWin
   Caption = 'Stack View'
@@ -14,7 +14,6 @@ object frmStackView: TfrmStackView
   OnDestroy = FormDestroy
   OnKeyDown = FormKeyDown
   OnShow = FormShow
-  PopupMode = pmAuto
   LCLVersion = '1.6.4.0'
   object lvStack: TListView
     Left = 0
@@ -68,6 +67,7 @@ object frmStackView: TfrmStackView
       OnClick = miAddESPClick
     end
     object miAddRef: TMenuItem
+      AutoCheck = True
       Caption = '(ref+*) Ref will be %x'
       GroupIndex = 1
       RadioItem = True

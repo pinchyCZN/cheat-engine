@@ -1,6 +1,10 @@
 unit addresslist;
 
+{$warn 3057 off}
+
 {$mode DELPHI}
+
+
 
 interface
 
@@ -198,7 +202,7 @@ type
 implementation
 
 uses dialogs, formAddressChangeUnit, TypePopup, PasteTableentryFRM, mainunit,
-  ProcessHandlerUnit, frmEditHistoryUnit, globals;
+  ProcessHandlerUnit, frmEditHistoryUnit, globals, filehandler;
 
 resourcestring
   rsDoYouWantToDeleteTheSelectedAddress = 'Do you want to delete the selected address?';
@@ -434,13 +438,16 @@ var
   oldlogWrites: boolean;
 begin
   oldlogWrites:=logwrites;
+
   //oldlogWrites:=false;
+  blockfilehandlerpopup:=true;
 
   try
     for i:=0 to count-1 do
       memrecitems[i].ApplyFreeze;
   finally
     logWrites:=oldlogWrites;
+    blockfilehandlerpopup:=false;
   end;
 end;
 
@@ -1046,9 +1053,6 @@ var
 
   frmMemrecCombobox: TfrmMemrecCombobox;
 begin
-
-
-
   if memrec.DropDownCount=0 then
   begin
     value:=AnsiToUtf8(memrec.value);
@@ -1067,6 +1071,10 @@ begin
     frmMemrecCombobox:=TfrmMemrecCombobox.Create(memrec);
     canceled:=frmMemrecCombobox.showmodal<>mrok;
 
+    if memrec.DropDownReadOnly and memrec.DropDownDescriptionOnly and memrec.DisplayAsDropDownListItem and (frmMemrecCombobox.value='*') then
+      canceled:=true;
+
+    if not canceled then
     value:=utf8toansi(frmMemrecCombobox.value);
 
     frmMemrecCombobox.free;
@@ -1547,12 +1555,12 @@ begin
   treeview.refresh;
 end;
 
-procedure TAddresslist.DragEnd(Sender, Target: TObject; X,Y: Integer);
+procedure TAddresslist.TVDragEnd(Sender, Target: TObject; X,Y: Integer);
 begin
   CurrentlyDraggedOverNode:=nil;
 end;
 
-procedure TAddresslist.DragOver(Sender, Source: TObject; X,Y: Integer; State: TDragState; var Accept: Boolean);
+procedure TAddresslist.TVDragOver(Sender, Source: TObject; X,Y: Integer; State: TDragState; var Accept: Boolean);
 var t: integer;
 begin
   CurrentlyDraggedOverNode:=TreeView.GetNodeAt(x,y);
@@ -1575,7 +1583,7 @@ begin
   treeview.refresh;
 end;
 
-procedure TAddresslist.DragDrop(Sender, Source: TObject; X,Y: Integer);
+procedure TAddresslist.TVDragDrop(Sender, Source: TObject; X,Y: Integer);
 var
   node: TTreenode;
   i: integer;
@@ -1746,10 +1754,10 @@ begin
   updated:=false;
 
   start:=0;
-  stop:=treeview.Items.Count;
+  stop:=treeview.Items.Count-1;
 
+   {
 
-  {
   if treeview.TopItem<>nil then
     start:=treeview.TopItem.Index
   else
@@ -2203,9 +2211,9 @@ begin
   treeview.OnExit:=Focuschange;
   treeview.OnEnter:=Focuschange;
 
-  treeview.OnDragOver:=DragOver;
-  treeview.OnDragDrop:=DragDrop;
-  treeview.OnEndDrag:=DragEnd;
+  treeview.OnDragOver:=TVDragOver;
+  treeview.OnDragDrop:=TVDragDrop;
+  treeview.OnEndDrag:=TVDragEnd;
  // treeview.OnKeyDown:=treeviewkeydown;
 //  treeview.Indent:=32;
 

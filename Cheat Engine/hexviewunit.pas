@@ -6,13 +6,13 @@ interface
 
 uses
   windows, Classes, SysUtils, forms, controls, StdCtrls, ExtCtrls, comctrls, graphics,
-  lmessages, menus,commctrl, symbolhandler, cefuncproc, newkernelhandler, math,
+  lmessages, menus,commctrl, symbolhandler, symbolhandlerstructs, cefuncproc, newkernelhandler, math,
   Clipbrd,dialogs, changelist, DebugHelper, debuggertypedefinitions, maps, contnrs,
   strutils, byteinterpreter, commonTypeDefs, lazutf8, lazutf16, lcltype;
 
 type
   TDisplayType = (dtByte, dtByteDec, dtWord, dtWordDec, dtDword, dtDwordDec, dtQword, dtQwordDec, dtSingle, dtDouble);
-  TCharEncoding = (ceAscii, ceUtf8, ceUtf16);
+  TCharEncoding = (ceAscii, ceCodepage, ceUtf8, ceUtf16);
 
 const
   DisplayTypeByteSize: array [dtByte..dtDouble] of integer =(1,1, 2,2, 4, 4, 8,8, 4, 8); //update both if adding something new
@@ -21,6 +21,7 @@ const
 type
   TByteSelectEvent=procedure(sender: TObject; address: ptruint; address2: ptruint) of object;
   TAddressChangeEvent=procedure(sender: TObject; address: ptruint) of object;
+  THexViewTextRenderEvent=procedure(sender: TObject; address: ptruint; var text: string) of object;
 
   THexRegion=(hrInvalid, hrByte, hrChar);
   TPageinfo=record
@@ -49,6 +50,10 @@ type
     charsize, bytesize, byteSizeWithoutChar: integer;
 
     memoryInfo: string;
+    memoryInfo_allocationbasepos: integer;
+    memoryInfo_allocationbaseend: integer;
+    memoryinfo_baseaddresspos: integer;
+    memoryinfo_baseaddressend: integer;
 
     addresswidth: integer;
     usablewidth: integer;
@@ -87,6 +92,9 @@ type
 
     fOnByteSelect: TByteSelectEvent;
     fonAddressChange: TAddressChangeEvent;
+
+    fOnCharacterRender: THexViewTextRenderEvent;
+    fOnValueRender: THexViewTextRenderEvent;
 
     lastaddress: ptruint;
     lastselection1, lastselection2: ptruint;
@@ -208,6 +216,9 @@ type
     property BytesPerSeperator: integer read fbytesPerSeperator write setBytesPerSeperator;
     property OnByteSelect: TByteSelectEvent read fOnByteSelect write fOnByteSelect;
     property OnAddressChange: TAddressChangeEvent read fonAddressChange write fonAddressChange;
+    property OnCharacterRender: THexViewTextRenderEvent read fOnCharacterRender write fOnCharacterRender;
+    property OnValueRender: THexViewTextRenderEvent read fOnValueRender write fOnValueRender;
+
 
     property PaintBox: TPaintbox read mbCanvas;
     property OSBitmap: TBitmap read offscreenBitmap;
@@ -221,7 +232,7 @@ type
 implementation
 
 uses formsettingsunit, Valuechange, MainUnit, ProcessHandlerUnit, parsers,
-  StructuresFrm2;
+  StructuresFrm2, MemoryBrowserFormUnit;
 
 resourcestring
   rsBigFuckingError = 'Big fucking error';
@@ -578,6 +589,14 @@ begin
       inc(Selected);
     end
     else
+    if CharEncoding=ceCodepage then
+    begin
+      s:=UTF8ToWinCP(wkey);
+
+      WriteProcessMemory(processhandle, pointer(selected), @s[1],length(s), bw);
+      inc(Selected);
+    end
+    else
     if CharEncoding=ceutf8 then
     begin
      // testcode: wkey:='한글';
@@ -707,7 +726,7 @@ start, stop: ptruint;
 gotoaddress: qword;
 begin
 
-  if shift=[] then
+  if (shift=[]) or (shift=[ssshift]) then
   begin
     case key of
       VK_DELETE:
@@ -753,7 +772,10 @@ begin
       vk_up:
       begin
         if isEditing then
-          dec(selected,bytesPerLine)
+        begin
+          dec(selected,bytesPerLine);
+          selected2:=selected+1;
+        end
         else
           address:=address-bytesPerLine;
 
@@ -764,7 +786,10 @@ begin
       vk_down:
       begin
         if isEditing then
-          inc(selected,bytesPerLine)
+        begin
+          inc(selected,bytesPerLine);
+          selected2:=selected+1;
+        end
         else
           address:=address+bytesperline;
 
@@ -797,6 +822,8 @@ begin
 
             end;
           end;
+
+          selected2:=selected+1;
         end
         else
           address:=address-1;
@@ -832,7 +859,7 @@ begin
               editingCursorPos:=0;
             end;
           end;
-
+          selected2:=selected+1;
         end
         else
           address:=address+1;
@@ -880,8 +907,8 @@ begin
 
     end;
 
-  end
-  else
+  end;
+ // else
   begin
     if (ssCtrl in shift) and (not (ssAlt in shift)) then
     begin
@@ -1147,8 +1174,46 @@ begin
 end;
 
 procedure THexView.mbCanvasDoubleClick(Sender: TObject);
+var
+  p: tpoint;
+  allocrangestart: integer;
+  allocrangestop: integer;
+
+  baserangestart: integer;
+  baserangestop: integer;
+  mbi: TMEMORYBASICINFORMATION;
 begin
   changeSelected;
+
+  p:=mouse.CursorPos;
+  p:=ScreenToClient(p);
+  //doubleclick doesn't happen often, so can be slow
+  if p.y<mbCanvas.Canvas.GetTextHeight(memoryInfo) then
+  begin
+    allocrangestart:=mbCanvas.Canvas.GetTextWidth(copy(memoryinfo,1,memoryInfo_allocationbasepos));
+    allocrangestop:=mbCanvas.Canvas.GetTextWidth(copy(memoryinfo,1,memoryInfo_allocationbaseend));
+
+    baserangestart:=mbCanvas.Canvas.GetTextWidth(copy(memoryinfo,1,memoryinfo_baseaddresspos));
+    baserangestop:=mbCanvas.Canvas.GetTextWidth(copy(memoryinfo,1,memoryinfo_baseaddressend));
+
+    Virtualqueryex(processhandle,pointer(fAddress),mbi,sizeof(mbi));
+
+    if InRange(p.x,allocrangestart,allocrangestop) then
+    begin
+      history.Push(pointer(faddress));
+      Address:=ptruint(mbi.AllocationBase);
+      exit;
+end;
+
+    if InRange(p.x,baserangestart,baserangestop) then
+    begin
+      history.Push(pointer(faddress));
+      Address:=ptruint(mbi.BaseAddress);
+      exit;
+    end;
+
+  end;
+
 end;
 
 procedure THexView.mbCanvasMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Integer);
@@ -1421,9 +1486,19 @@ begin
     if (mbi.Protect and PAGE_GUARD)>0 then memoryInfo:=memoryInfo+rsGuarded+' ';
     if (mbi.Protect and PAGE_NOCACHE)>0 then memoryInfo:=memoryInfo+rsNotCached;
 
+    memoryInfo:=memoryInfo+' ';
 
-    memoryInfo:=memoryInfo+' '+rsBase+'='+IntToHex(ptrUint(mbi.BaseAddress), 8)+' '
-      +rsSize+'='+IntTohex(mbi.RegionSize, 1);
+    memoryInfo_allocationbasepos:=length(memoryinfo);
+    memoryinfo:=memoryinfo+'AllocationBase='+IntToHex(ptrUint(mbi.AllocationBase), 8);
+    memoryInfo_allocationbaseend:=length(memoryinfo);
+
+    memoryinfo:=memoryinfo+' ';
+
+    memoryinfo_baseaddresspos:=length(memoryinfo);
+    memoryinfo:=memoryinfo+rsBase+'='+IntToHex(ptrUint(mbi.BaseAddress), 8);
+    memoryinfo_baseaddressend:=length(memoryinfo);
+
+    memoryinfo:=memoryinfo+' '+rsSize+'='+IntTohex(mbi.RegionSize, 1);
 
     if (formsettings<>nil) and assigned(GetPhysicalAddress) and formsettings.cbKernelOpenProcess.checked and GetPhysicalAddress(processhandle,pointer(fAddress),a64) then
       memoryInfo:=memoryInfo+' '+rsPhysicalAddress+'='+IntToHex(a64, 8);
@@ -1735,8 +1810,11 @@ begin
       result:='.'
     else
       result:=chr(b);
-
-
+  end
+  else
+  if fCharEncoding=ceCodepage then
+  begin
+    result:=chr(b);
   end
   else
   if fCharEncoding=ceutf8 then
@@ -1853,6 +1931,7 @@ var
   different: boolean;
 
   bp: PBreakpoint;
+
 
   char: string;
   nextCharAddress: ptruint;
@@ -1971,10 +2050,13 @@ begin
 
   itemnr:=0;
   selectedcharsize:=1;
+
   if isEditing then
   begin
+
     case CharEncoding of
       ceAscii: selectedcharsize:=1;
+      ceCodePage: selectedcharsize:=1;
       ceUtf8: selectedcharsize:=getUTF8CharByteLength(selected);
       ceUtf16: selectedcharsize:=getUTF16CharByteLength(selected);
     end;
@@ -2087,7 +2169,13 @@ begin
       end;
 
       if displaythis then
-        offscreenbitmap.canvas.TextOut(bytestart+bytepos*charsize, 2+2*textheight+(i*(textheight+fspaceBetweenLines)) , changelist.values[itemnr]);
+      begin
+        s:=changelist.values[itemnr];
+        if assigned(fOnValueRender) then
+          fOnValueRender(self, currentaddress, s);
+
+        offscreenbitmap.canvas.TextOut(bytestart+bytepos*charsize, 2+2*textheight+(i*(textheight+fspaceBetweenLines)) , s);
+      end;
 
 
       //if isEditing and ((currentAddress=selected) or ((editingtype=hrByte) and ((CharEncoding=ceUtf16) and (currentaddress=selected+1)))) then
@@ -2108,6 +2196,10 @@ begin
       if currentAddress=nextCharAddress then //(fCharEncoding in [ceAscii, ceUtf8]) or (j mod 2=0) then
       begin
         char:=getChar(currentAddress, lastcharsize);
+
+        if assigned(fOnCharacterRender) then
+          fOnCharacterRender(self, currentaddress, char);
+
         offscreenbitmap.canvas.TextOut(charstart+j*charsize, 2+2*textheight+(i*(textheight+fspaceBetweenLines)), char); //char
 
         inc(nextCharAddress, lastcharsize);
@@ -2132,7 +2224,7 @@ begin
       end;
 
       bytepos:=bytepos+3;
-      if DisplayType=dtByteDec then   //bute decimal is special as it has a big chance it's going to be bigegr than 99
+      if DisplayType=dtByteDec then   //byte decimal is special as it has a big chance it's going to be bigegr than 99
         inc(bytepos);
 
       inc(currentaddress);
@@ -2157,7 +2249,7 @@ begin
   offscreenbitmap.Canvas.LineTo(charstart+bytesperline*charsize,textheight*2);
 
 
-  v_qword:=getQWordValue(SelectionStart, unreadable);
+  v_qword:=int64(getQWordValue(SelectionStart, unreadable));
   if not unreadable then
     s:=format(': byte: %d word: %d integer: %d int64: %d float:%f double: %f',[integer(v_byte), integer(v_word), v_int, v_qword,v_float, v_double])
   else
@@ -2344,6 +2436,7 @@ procedure THexView.Follow;
 var
   gotoaddress: ptruint;
   x: ptruint;
+  mb: TMemoryBrowser;
 begin
   if canfollow then
   begin
@@ -2353,6 +2446,16 @@ begin
     if ReadProcessMemory(processhandle, pointer(getSelectionStart), @gotoaddress, processhandler.pointersize,x) then
     begin
       //save the current address in the history
+      if ssshift in GetKeyShiftState then
+      begin
+        //spawn a new memoryview window and set the address to there
+        memorybrowser.Newwindow1.Click;
+        mb:=TMemoryBrowser(MemoryBrowsers[memorybrowsers.count-1]);
+        mb.hexview.Address:=gotoaddress;
+        mb.show;
+      end
+      else
+      begin
       backlist.push(pointer(address));
 
       //and go to this new address
@@ -2360,6 +2463,7 @@ begin
       fhasSelection:=false;
       isEditing:=false;
     end;
+  end;
   end;
 
 end;

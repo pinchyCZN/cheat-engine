@@ -1,6 +1,8 @@
 unit frmThreadlistunit;
 
 {$MODE Delphi}
+{$warn 4056 off}
+{$warn 4082 off}
 
 interface
 
@@ -17,8 +19,10 @@ type
   { TfrmThreadlist }
 
   TfrmThreadlist = class(TForm)
+    tlImageList: TImageList;
     lblIsWOW64: TLabel;
     MenuItem1: TMenuItem;
+    miCopyValueToClipboard: TMenuItem;
     miClearDebugRegisters: TMenuItem;
     miFreezeThread: TMenuItem;
     miResumeThread: TMenuItem;
@@ -27,13 +31,15 @@ type
     threadTreeview: TTreeView;
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure FormCreate(Sender: TObject);
-    procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure MenuItem1Click(Sender: TObject);
     procedure miBreakClick(Sender: TObject);
     procedure miClearDebugRegistersClick(Sender: TObject);
+    procedure miCopyValueToClipboardClick(Sender: TObject);
     procedure miFreezeThreadClick(Sender: TObject);
     procedure miResumeThreadClick(Sender: TObject);
+    procedure PopupMenu1Popup(Sender: TObject);
     procedure threadTreeviewDblClick(Sender: TObject);
     procedure threadTreeviewExpanding(Sender: TObject; Node: TTreeNode;
       var AllowExpansion: Boolean);
@@ -50,7 +56,7 @@ var
 implementation
 
 uses debugeventhandler, frmstacktraceunit, DebuggerInterfaceAPIWrapper,
-  ProcessHandlerUnit, Parsers;
+  ProcessHandlerUnit, Parsers, symbolhandler, Clipbrd;
 
 resourcestring
   rsPleaseFirstAttachTheDebuggerToThisProcess = 'Please first attach the debugger to this process';
@@ -67,6 +73,7 @@ resourcestring
   rsTL2Bytes = '2 bytes';
   rsTL8Bytes = '8 bytes';
   rsTL4Bytes = '4 bytes';
+  rsCurrent  = 'Current';
 
 procedure TfrmThreadlist.FormClose(Sender: TObject;
   var Action: TCloseAction);
@@ -78,13 +85,13 @@ end;
 procedure TfrmThreadlist.FormCreate(Sender: TObject);
 begin
   fillthreadlist;
+
+  LoadFormPosition(self);
 end;
 
-procedure TfrmThreadlist.FormKeyDown(Sender: TObject; var Key: Word;
-  Shift: TShiftState);
+procedure TfrmThreadlist.FormDestroy(Sender: TObject);
 begin
-  if(key=VK_ESCAPE)then
-    self.close;
+  SaveFormPosition(self);
 end;
 
 procedure TfrmThreadlist.FormShow(Sender: TObject);
@@ -116,7 +123,7 @@ begin
     while s.level>0 do
       s:=s.Parent;
 
-    tid:=strtoint('$'+s.Text);
+    tid:=integer(s.data);
 
     if frmstacktrace=nil then
       frmstacktrace:=tfrmstacktrace.create(application);
@@ -186,8 +193,15 @@ begin
 end;
 
 procedure TFrmthreadlist.FillThreadlist;
+type
+  TExpandedInfo=record
+    tid: dword;
+    selectedIndex: integer; //mostly -1
+  end;
+  PExpandedInfo=^TExpandedInfo;
 
-var i: integer;
+var
+  i,j: integer;
     lastselected: integer;
     threadlist: tlist;
     li: TListitem;
@@ -198,11 +212,36 @@ var i: integer;
     needed: dword;
 
     pp: PSystemProcesses;
+
+  s: string;
+
+  n:TTreenode;
+  expandedList: TList;
+  expinfo: PExpandedInfo;
 begin
-  if threadTreeview.Selected<>nil then
-    lastselected:=threadTreeview.selected.index
-  else
-    lastselected:=-1;
+  expandedList:=TList.create;
+  n:=threadtreeview.Items.GetFirstNode;
+  while n<>nil do
+  begin
+    if n.Expanded then
+    begin
+      getmem(expinfo,sizeof(TExpandedInfo));
+      expinfo^.tid:=integer(n.data);
+      expinfo^.selectedIndex:=-1;
+
+      for i:=0 to n.Count-1 do
+        if n[i].Selected then
+        begin
+          expinfo^.selectedIndex:=i;
+          break;
+        end;
+
+      expandedlist.Add(expinfo);
+    end;
+
+    n:=n.GetNextSibling;
+  end;
+
 
   threadTreeview.BeginUpdate;
   threadTreeview.Items.Clear;
@@ -212,7 +251,14 @@ begin
     threadlist:=debuggerthread.lockThreadlist;
     try
       for i:=0 to threadlist.Count-1 do
-        threadTreeview.Items.Add(nil,inttohex(TDebugThreadHandler(threadlist[i]).ThreadId,1));
+      begin
+        s:=inttohex(TDebugThreadHandler(threadlist[i]).ThreadId,1);
+        if debuggerthread.isWaitingToContinue and (debuggerthread.CurrentThread.ThreadId=TDebugThreadHandler(threadlist[i]).ThreadId) then
+          s:=s+' ('+rsCurrent+')';
+
+        n:=threadTreeview.Items.Add(nil,s);
+        n.Data:=pointer(TDebugThreadHandler(threadlist[i]).ThreadId);
+      end;
 
     finally
       debuggerthread.unlockThreadlist;
@@ -229,21 +275,45 @@ begin
       if Thread32First(ths, te32) then
       repeat
         if te32.th32OwnerProcessID=processid then
-          threadTreeview.Items.add(nil,inttohex(te32.th32ThreadID,1));
+        begin
+          n:=threadTreeview.Items.add(nil,inttohex(te32.th32ThreadID,1));
+          n.data:=pointer(te32.th32ThreadID);
+        end;
 
       until Thread32Next(ths, te32)=false;
       closehandle(ths);
     end;
-
-
-
   end;
 
   for i:=0 to threadTreeview.Items.Count-1 do
     threadTreeview.Items[i].HasChildren:=true;
 
-  if (lastselected<>-1) and (threadTreeview.Items.Count>lastselected) then
-    threadTreeview.Items[lastselected].Selected:=true;
+  //expand the selected items
+  for i:=0 to expandedlist.Count-1 do
+  begin
+    expinfo:=expandedlist.items[i];
+
+    n:=threadtreeview.Items.GetFirstNode;
+    while n<>nil do
+    begin
+      if integer(n.data)=expinfo^.tid then
+      begin
+        n.Expand(true);
+        if (expinfo^.selectedIndex<>-1) and (expinfo^.selectedIndex<n.Count) then
+          n[expinfo^.selectedIndex].Selected:=true;
+  end;
+
+      n:=n.GetNextSibling;
+    end;
+
+    freemem(expinfo);
+  end;
+
+  expandedlist.free;
+
+
+  {if threadtreeview.Selected<>nil then
+    threadtreeview.selected.MakeVisible;}
 
   threadTreeview.EndUpdate;
 end;
@@ -260,7 +330,7 @@ begin
       try
         for i:=0 to threadlist.Count-1 do
         begin
-          if TDebugThreadHandler(threadlist[i]).ThreadId=strtoint('$'+threadTreeview.selected.Text) then
+          if TDebugThreadHandler(threadlist[i]).ThreadId=integer(threadTreeview.selected.data) then
           begin
             TDebugThreadHandler(threadlist[i]).breakThread;
             break;
@@ -300,7 +370,7 @@ begin
         try
           for i:=0 to threadlist.Count-1 do
           begin
-            if TDebugThreadHandler(threadlist[i]).ThreadId=strtoint('$'+s.Text) then
+            if TDebugThreadHandler(threadlist[i]).ThreadId=integer(s.data) then
             begin
               TDebugThreadHandler(threadlist[i]).clearDebugRegisters;
               break;
@@ -316,6 +386,39 @@ begin
   end
   else
     raise exception.create(rsPleaseFirstAttachTheDebuggerToThisProcess);
+end;
+
+procedure TfrmThreadlist.miCopyValueToClipboardClick(Sender: TObject);
+var
+  s: string;
+  i: integer;
+
+  r: tstringlist;
+begin
+  if (threadTreeview.Selected<>nil) and (threadtreeview.Selected.Level=1) then
+  begin
+    if threadTreeview.SelectionCount>1 then
+    begin
+      r:=tstringlist.create;
+
+      for i:=0 to threadTreeview.Items.count-1 do
+        if threadTreeview.items[i].Selected then
+          r.add(threadTreeview.items[i].text);
+
+      Clipboard.AsText:=r.Text;
+      r.free;
+    end
+    else
+    begin
+      s:=threadTreeview.Selected.text;
+      i:=pos('=',s);
+      if i<>-1 then
+      begin
+        s:=copy(s,i+1,length(s));
+        Clipboard.AsText:=s;
+      end;
+    end;
+  end;
 end;
 
 procedure TfrmThreadlist.miFreezeThreadClick(Sender: TObject);
@@ -334,7 +437,7 @@ begin
     while s.level>0 do
       s:=s.Parent;
 
-    tid:=strtoint('$'+s.Text);
+    tid:=integer(s.data);
 
     if debuggerthread<>nil then
     begin
@@ -345,14 +448,14 @@ begin
           if TDebugThreadHandler(threadlist[i]).ThreadId=tid then
           begin
             SuspendThread(TDebugThreadHandler(threadlist[i]).handle);
-            break;
+            exit;
           end;
         end;
       finally
         debuggerthread.unlockThreadlist;
       end;
-    end
-    else
+    end;
+
     begin
       th:=OpenThread(THREAD_SUSPEND_RESUME, false, tid);
 
@@ -382,7 +485,7 @@ begin
     while s.level>0 do
       s:=s.Parent;
 
-    tid:=strtoint('$'+s.Text);
+    tid:=integer(s.data);
 
     if debuggerthread<>nil then
     begin
@@ -392,15 +495,15 @@ begin
         begin
           if TDebugThreadHandler(threadlist[i]).ThreadId=tid then
           begin
-            SuspendThread(TDebugThreadHandler(threadlist[i]).handle);
-            break;
+            ResumeThread(TDebugThreadHandler(threadlist[i]).handle);
+            exit;
           end;
         end;
       finally
         debuggerthread.unlockThreadlist;
       end;
-    end
-    else
+    end;
+
     begin
       th:=OpenThread(THREAD_SUSPEND_RESUME, false, tid);
 
@@ -414,10 +517,16 @@ begin
   end;
 end;
 
+procedure TfrmThreadlist.PopupMenu1Popup(Sender: TObject);
+begin
+  miCopyValueToClipboard.visible:=(threadTreeview.Selected<>nil) and (threadtreeview.Selected.Level=1);
+end;
+
 procedure TfrmThreadlist.threadTreeviewDblClick(Sender: TObject);
 var s: TTreeNode;
   th: thandle;
-  c: tcontext;
+  cp: pcontext;
+
 
 
   regnr: integer;
@@ -435,9 +544,11 @@ var s: TTreeNode;
   use32bitcontext: boolean;
   c32: TContext32;
   {$endif}
+
+  isCurrentDebuggedThread: boolean;
 begin
   //change the selected register
-
+  isCurrentDebuggedThread:=false;
 
   s:=threadTreeview.Selected;
   if (s<>nil) and (s.level=1) then //selected a registers
@@ -448,22 +559,36 @@ begin
     while s.level>0 do
       s:=s.Parent;
 
-    tid:=strtoint('$'+s.Text);
+    tid:=integer(s.data);
 
+    if (tid=GetCurrentThreadId) then exit; //don't accidentally freeze the ce main thread
 
+    isCurrentDebuggedThread:=(debuggerthread<>nil) and debuggerthread.isWaitingToContinue and (debuggerthread.CurrentThread.ThreadId=tid);
 
-
+    if isCurrentDebuggedThread then
+      th:=debuggerthread.CurrentThread.handle
+    else
     th:=OpenThread(THREAD_SUSPEND_RESUME or THREAD_GET_CONTEXT or THREAD_SET_CONTEXT or THREAD_QUERY_INFORMATION, false, tid);
 
-    if th<>0 then
+    if (th<>0) then
     begin
+      if not isCurrentDebuggedThread then
       suspendthread(th);
 
       x:=false;
-      ZeroMemory(@c, sizeof(c));
 
+      if isCurrentDebuggedThread then
+        cp:=debuggerthread.CurrentThread.context
+      else
+      begin
+        getmem(cp,sizeof(TCONTEXT)+4096);
+        ZeroMemory(cp, sizeof(TCONTEXT)+4096);
+      end;
+
+      try
       {$ifdef cpu64}
       use32bitcontext:=(not processhandler.is64Bit) and (ssctrl in GetKeyShiftState);
+
 
       if use32bitcontext then
       begin
@@ -475,21 +600,21 @@ begin
         if x then
         begin
           //convert
-          c.Dr0:=c32.Dr0;
-          c.Dr1:=c32.Dr1;
-          c.Dr2:=c32.Dr2;
-          c.Dr3:=c32.Dr3;
-          c.Dr6:=c32.Dr6;
-          c.Dr7:=c32.Dr7;
-          c.Rax:=c32.eax;
-          c.Rbx:=c32.ebx;
-          c.Rcx:=c32.ecx;
-          c.Rdx:=c32.edx;
-          c.Rsi:=c32.esi;
-          c.Rdi:=c32.edi;
-          c.Rbp:=c32.ebp;
-          c.Rsp:=c32.esp;
-          c.Rip:=c32.eip;
+            cp^.Dr0:=c32.Dr0;
+            cp^.Dr1:=c32.Dr1;
+            cp^.Dr2:=c32.Dr2;
+            cp^.Dr3:=c32.Dr3;
+            cp^.Dr6:=c32.Dr6;
+            cp^.Dr7:=c32.Dr7;
+            cp^.Rax:=c32.eax;
+            cp^.Rbx:=c32.ebx;
+            cp^.Rcx:=c32.ecx;
+            cp^.Rdx:=c32.edx;
+            cp^.Rsi:=c32.esi;
+            cp^.Rdi:=c32.edi;
+            cp^.Rbp:=c32.ebp;
+            cp^.Rsp:=c32.esp;
+            cp^.Rip:=c32.eip;
 
 
         end;
@@ -497,9 +622,13 @@ begin
       else
       {$endif}
       begin
-
-        c.ContextFlags:=CONTEXT_ALL or CONTEXT_EXTENDED_REGISTERS;
-        x:=GetThreadContext(th, c);
+          if isCurrentDebuggedThread=false then
+          begin
+            cp^.ContextFlags:=CONTEXT_ALL or CONTEXT_EXTENDED_REGISTERS;
+            x:=GetThreadContext(th, cp^);
+          end
+          else
+            x:=true;
       end;
 
 
@@ -507,35 +636,35 @@ begin
       if x then
       begin
         case regnr of
-          0: regaddress:=@c.Dr0;
-          1: regaddress:=@c.Dr1;
-          2: regaddress:=@c.Dr2;
-          3: regaddress:=@c.Dr3;
-          4: regaddress:=@c.Dr6;
-          5: regaddress:=@c.Dr7;
+            0: regaddress:=@cp^.Dr0;
+            1: regaddress:=@cp^.Dr1;
+            2: regaddress:=@cp^.Dr2;
+            3: regaddress:=@cp^.Dr3;
+            4: regaddress:=@cp^.Dr6;
+            5: regaddress:=@cp^.Dr7;
 
-          6: regaddress:=@c.{$ifdef cpu64}rax{$else}eax{$endif};
-          7: regaddress:=@c.{$ifdef cpu64}rbx{$else}ebx{$endif};
-          8: regaddress:=@c.{$ifdef cpu64}rcx{$else}ecx{$endif};
-          9: regaddress:=@c.{$ifdef cpu64}rdx{$else}edx{$endif};
-          10: regaddress:=@c.{$ifdef cpu64}rsi{$else}esi{$endif};
-          11: regaddress:=@c.{$ifdef cpu64}rdi{$else}edi{$endif};
-          12: regaddress:=@c.{$ifdef cpu64}rbp{$else}ebp{$endif};
-          13: regaddress:=@c.{$ifdef cpu64}rsp{$else}esp{$endif};
-          14: regaddress:=@c.{$ifdef cpu64}rip{$else}eip{$endif};
+            6: regaddress:=@cp^.{$ifdef cpu64}rax{$else}eax{$endif};
+            7: regaddress:=@cp^.{$ifdef cpu64}rbx{$else}ebx{$endif};
+            8: regaddress:=@cp^.{$ifdef cpu64}rcx{$else}ecx{$endif};
+            9: regaddress:=@cp^.{$ifdef cpu64}rdx{$else}edx{$endif};
+            10: regaddress:=@cp^.{$ifdef cpu64}rsi{$else}esi{$endif};
+            11: regaddress:=@cp^.{$ifdef cpu64}rdi{$else}edi{$endif};
+            12: regaddress:=@cp^.{$ifdef cpu64}rbp{$else}ebp{$endif};
+            13: regaddress:=@cp^.{$ifdef cpu64}rsp{$else}esp{$endif};
+            14: regaddress:=@cp^.{$ifdef cpu64}rip{$else}eip{$endif};
 
           {$ifdef cpu64}
-          15: regaddress:=@c.r8;
-          16: regaddress:=@c.r9;
-          17: regaddress:=@c.r10;
-          18: regaddress:=@c.r11;
-          19: regaddress:=@c.r12;
-          20: regaddress:=@c.r13;
-          21: regaddress:=@c.r14;
-          22: regaddress:=@c.r15;
+            15: regaddress:=@cp^.r8;
+            16: regaddress:=@cp^.r9;
+            17: regaddress:=@cp^.r10;
+            18: regaddress:=@cp^.r11;
+            19: regaddress:=@cp^.r12;
+            20: regaddress:=@cp^.r13;
+            21: regaddress:=@cp^.r14;
+            22: regaddress:=@cp^.r15;
           {$endif}
           else
-            regaddress:=@v; //in case of bugs
+              raise exception.create('Invalid register');
         end;
 
         if processhandler.is64Bit then
@@ -546,7 +675,7 @@ begin
         input:=inttohex(v,8);
         InputQuery(rsTLChangeValue,rsTLWhatShouldTheNewValueOfThisRegisterBe, input);
 
-        v:=StrToQWordEx('$'+input);
+          v:=symhandler.getAddressFromName(input);
 
         if processhandler.is64Bit then
           regaddress^:=v
@@ -557,21 +686,21 @@ begin
         if use32bitcontext then
         begin
           c32.ContextFlags:=CONTEXT_ALL;
-          c32.Dr0:=c.Dr0;
-          c32.Dr1:=c.Dr1;
-          c32.Dr2:=c.Dr2;
-          c32.Dr3:=c.Dr3;
-          c32.Dr6:=c.Dr6;
-          c32.Dr7:=c.Dr7;
-          c32.eax:=c.Rax;
-          c32.ebx:=c.rbx;
-          c32.ecx:=c.rcx;
-          c32.edx:=c.rdx;
-          c32.esi:=c.rsi;
-          c32.edi:=c.rdi;
-          c32.ebp:=c.rbp;
-          c32.esp:=c.rsp;
-          c32.eip:=c.rip;
+            c32.Dr0:=cp^.Dr0;
+            c32.Dr1:=cp^.Dr1;
+            c32.Dr2:=cp^.Dr2;
+            c32.Dr3:=cp^.Dr3;
+            c32.Dr6:=cp^.Dr6;
+            c32.Dr7:=cp^.Dr7;
+            c32.eax:=cp^.Rax;
+            c32.ebx:=cp^.rbx;
+            c32.ecx:=cp^.rcx;
+            c32.edx:=cp^.rdx;
+            c32.esi:=cp^.rsi;
+            c32.edi:=cp^.rdi;
+            c32.ebp:=cp^.rbp;
+            c32.esp:=cp^.rsp;
+            c32.eip:=cp^.rip;
 
           if WOW64SetThreadContext(th, c32)=false then
             showmessage(rsTLFailedErrorcode+inttostr(GetLastError));
@@ -579,39 +708,46 @@ begin
         else
         {$endif}
         begin
-          c.ContextFlags:=CONTEXT_ALL or CONTEXT_EXTENDED_REGISTERS;
-          if SetThreadContext(th, c)=false then
+            if isCurrentDebuggedThread then
+            begin
+              debuggerthread.CurrentThread.setContext;
+              debuggerthread.CurrentThread.fillContext;
+
+
+            end
+            else
+            begin
+              cp^.ContextFlags:=CONTEXT_ALL or CONTEXT_EXTENDED_REGISTERS;
+              if SetThreadContext(th, cp^)=false then
             showmessage(rsTLFailedErrorcode+inttostr(GetLastError));
         end;
       end;
+        end;
 
+        if isCurrentDebuggedThread=false then
+        begin
       resumethread(th);
       closehandle(th);
+        end;
 
 
+        s.Collapse(true);
+        s.DeleteChildren;
+        s.HasChildren:=true;
+        s.Expand(true);
 
-      threadTreeviewExpanding(threadTreeview, s,x);
 
+        //threadTreeviewExpanding(threadTreeview, s,x);
 
-      threadTreeview.Items.SelectOnlyThis(threadTreeview.Items[ai]);
+        //threadTreeview.Items.SelectOnlyThis(threadTreeview.Items[ai]);
       threadTreeview.Selected:=threadTreeview.Items[ai];
-
-
-
+        threadTreeview.selected.MakeVisible;
+      finally
+        if isCurrentDebuggedThread=false then
+          freemem(cp);
     end;
-
-
   end;
-
-
-
-
-  //suspend the thread
-  //get the current register value
-  //show and edit
-  //convert back to integer
-  //resume thread
-
+end;
 end;
 
 
@@ -622,6 +758,7 @@ procedure TfrmThreadlist.threadTreeviewExpanding(Sender: TObject;
   Node: TTreeNode; var AllowExpansion: Boolean);
 function rw2str(x: byte): string;
 begin
+  result:='';
   case x of
     0: result:=rsTLExecute;
     1: result:=rsTLWrite;
@@ -632,6 +769,7 @@ end;
 
 function len2str(x: byte): string;
 begin
+  result:='';
   case x of
     0: result:=rsTL1Bytes;
     1: result:=rsTL2Bytes;
@@ -657,20 +795,26 @@ var
   i: integer;
   x: boolean;
 
+  tempp: ptruint;
+
   {$ifdef cpu64}
   use32bitcontext: boolean;
   c32: TContext32;
   {$endif}
 
   cenet: TCEconnection;
+
+  tbi: THREAD_BASIC_INFORMATION;
 begin
+  drinfo:=' ';
+
   if node.level=0 then
   begin
     //extract thread info
     if node.HasChildren then
       Node.DeleteChildren;
 
-    tid:=strtoint('$'+Node.text);
+    tid:=integer(node.Data);
 
     cenet:=getConnection;
     if cenet<>nil then
@@ -891,12 +1035,18 @@ begin
           threadTreeview.items.AddChild(node,'cs='+inttohex(c.SegCs,8));
 
 
+          i:=NtQueryInformationThread(th, ThreadBasicInformation, @tbi, sizeof(tbi), @x);
+          if i=0 then
+            threadTreeview.items.AddChild(node,'TEB='+inttohex(qword(tbi.TebBaseAddress),8));
+
+          if processhandler.is64Bit=false then
+          begin
           if GetThreadSelectorEntry(th, c.segFs, ldtentry) then
             threadTreeview.items.AddChild(node,'fsbase='+inttohex(ldtentry.BaseLow+ldtentry.HighWord.Bytes.BaseMid shl 16+ldtentry.HighWord.Bytes.BaseHi shl 24,8));
 
           if GetThreadSelectorEntry(th, c.SegGs, ldtentry) then
             threadTreeview.items.AddChild(node,'gsbase='+inttohex(ldtentry.BaseLow+ldtentry.HighWord.Bytes.BaseMid shl 16+ldtentry.HighWord.Bytes.BaseHi shl 24,8));
-
+          end;
 
         end
         else threadTreeview.items.AddChild(node, rsCouldnTObtainContext);

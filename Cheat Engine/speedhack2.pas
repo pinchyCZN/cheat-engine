@@ -35,15 +35,19 @@ constructor TSpeedhack.create;
 var i: integer;
     script: tstringlist;
     AllocArray: TCEAllocArray;
+    exceptionlist: TCEExceptionListArray;
     x: ptrUint;
 //      y: dword;
     a,b: ptrUint;
     c: TCEConnection;
+    e: boolean;
 
     fname: string;
     err: boolean;
 
     path: string;
+
+    QPCAddress: ptruint;
 begin
   initaddress:=0;
 
@@ -64,9 +68,17 @@ begin
         fname:='speedhack-i386.dll';
 
       symhandler.waitforsymbolsloaded(true, 'kernel32.dll'); //speed it up (else it'll wait inside the symbol lookup of injectdll)
-      injectdll(CheatEngineDir+fname);
-      symhandler.reinitialize;
-      symhandler.waitforsymbolsloaded(true)
+
+      symhandler.waitForExports;
+      symhandler.getAddressFromName('speedhackversion_GetTickCount',false,e);
+      if e then
+      begin
+        injectdll(CheatEngineDir+fname);
+        symhandler.reinitialize;
+        symhandler.waitforsymbolsloaded(true)
+      end;
+
+
     except
       on e: exception do
       begin
@@ -162,7 +174,7 @@ begin
         script.Add('alloc(init,512)');
       //check if it already has a a speedhack script running
 
-      a:=symhandler.getAddressFromName('realgettickcount') ;
+      a:=symhandler.getAddressFromName('realgettickcount', true) ;
       b:=0;
       readprocessmemory(processhandle,pointer(a),@b,processhandler.pointersize,x);
       if b<>0 then //already configured
@@ -176,7 +188,8 @@ begin
       try
         setlength(AllocArray,0);
 
-        autoassemble(script,false,true,false,false,AllocArray);
+        autoassemble(script,false,true,false,false,AllocArray, exceptionlist);
+        clipboard.AsText:=script.text;
 
         //fill in the address for the init region
         for i:=0 to length(AllocArray)-1 do
@@ -195,9 +208,8 @@ begin
         end;
       end;
 
-
       //timegettime
-      if symhandler.getAddressFromName('timeGetTime',false,err)>0 then //might not be loaded
+      if symhandler.getAddressFromName('timeGetTime',true,err)>0 then //might not be loaded
       begin
         script.Clear;
         script.Add('timeGetTime:');
@@ -210,14 +222,20 @@ begin
 
 
       //qpc
+      qpcaddress:=symhandler.getAddressFromName('ntdll.RtlQueryPerformanceCounter',true, err);
+      if err then
+        qpcaddress:=symhandler.getAddressFromName('kernel32.RtlQueryPerformanceCounter',true);
+
+
       script.clear;
       a:=symhandler.getAddressFromName('realQueryPerformanceCounter') ;
       b:=0;
       readprocessmemory(processhandle,pointer(a),@b,processhandler.pointersize,x);
+
       if b<>0 then //already configured
-        generateAPIHookScript(script, 'QueryPerformanceCounter', 'speedhackversion_QueryPerformanceCounter')
+        generateAPIHookScript(script, inttohex(qpcaddress,8), 'speedhackversion_QueryPerformanceCounter')
       else
-        generateAPIHookScript(script, 'QueryPerformanceCounter', 'speedhackversion_QueryPerformanceCounter', 'realQueryPerformanceCounter');
+        generateAPIHookScript(script, inttohex(qpcaddress,8), 'speedhackversion_QueryPerformanceCounter', 'realQueryPerformanceCounter');
 
       try
         autoassemble(script,false);
@@ -226,7 +244,7 @@ begin
       end;
 
       //gettickcount64
-      if symhandler.getAddressFromName('GetTickCount64',false,err)>0 then
+      if symhandler.getAddressFromName('GetTickCount64',true,err)>0 then
       begin
         script.clear;
         a:=symhandler.getAddressFromName('realGetTickCount64') ;

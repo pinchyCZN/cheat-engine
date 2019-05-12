@@ -54,6 +54,7 @@ type
     cbSaveToDisk: TCheckBox;
     edtRegExp: TEdit;
     FindDialog1: TFindDialog;
+    smImageList: TImageList;
     lblStringCount: TLabel;
     ListView1: TListView;
     miFind: TMenuItem;
@@ -338,7 +339,7 @@ begin
       end;
     finally
       if buf<>nil then
-        freemem(buf);
+        FreeMemAndNil(buf);
 
       if f<>nil then
         freeandnil(f);
@@ -551,7 +552,7 @@ begin
             end;
 
           finally
-            freemem(buf);
+            FreeMemAndNil(buf);
             isfillinglist:=false;
             btnShowList.caption:=rsBtnShowList;
           end;

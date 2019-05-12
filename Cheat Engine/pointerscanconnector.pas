@@ -154,6 +154,8 @@ begin
   finally
     listcs.leave;
   end;
+
+  result:=entry.id;
 end;
 
 procedure TPointerscanConnector.Log(msg: string);

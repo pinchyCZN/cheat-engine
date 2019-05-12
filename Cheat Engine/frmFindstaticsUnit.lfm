@@ -12,7 +12,6 @@ object frmFindStatics: TfrmFindStatics
   OnCreate = FormCreate
   OnKeyDown = FormKeyDown
   OnShow = FormShow
-  PopupMode = pmAuto
   Position = poScreenCenter
   LCLVersion = '1.6.4.0'
   object ProgressBar1: TProgressBar

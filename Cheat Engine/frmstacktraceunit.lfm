@@ -1,17 +1,14 @@
 object frmStacktrace: TfrmStacktrace
-  Left = 228
+  Left = 171
   Height = 274
-  Top = 148
+  Top = 100
   Width = 683
   BorderStyle = bsSizeToolWin
   Caption = 'Stacktrace'
   ClientHeight = 274
   ClientWidth = 683
-  KeyPreview = True
   OnClose = FormClose
   OnCreate = FormCreate
-  OnKeyDown = FormKeyDown
-  PopupMode = pmAuto
   Position = poOwnerFormCenter
   LCLVersion = '1.6.4.0'
   object ListView1: TListView
@@ -40,7 +37,7 @@ object frmStacktrace: TfrmStacktrace
       item
         AutoSize = True
         Caption = 'Parameters'
-        Width = 66
+        Width = 74
       end>
     PopupMenu = PopupMenu1
     ReadOnly = True

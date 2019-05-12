@@ -16,12 +16,13 @@ type
   TfrmMemviewPreferences = class(TForm)
     btnFont: TButton;
     btnHexFont: TButton;
-    btnHCOLOR: TButton;
+    btnRegisterViewFont: TButton;
     Button2: TButton;
     Button3: TButton;
     cbColorGroup: TComboBox;
     cbShowStatusBar: TCheckBox;
     ColorDialog1: TColorDialog;
+    cbFontQuality: TComboBox;
     edtSpaceAboveLines: TEdit;
     edtSpaceBelowLines: TEdit;
     edtHexSpaceBetweenLines: TEdit;
@@ -29,14 +30,14 @@ type
     edtJLSpacing: TEdit;
     FontDialog1: TFontDialog;
     FontDialog2: TFontDialog;
+    FontDialog3: TFontDialog;
     GroupBox1: TGroupBox;
     GroupBox2: TGroupBox;
     GroupBox3: TGroupBox;
     GroupBox4: TGroupBox;
     GroupBox5: TGroupBox;
     GroupBox6: TGroupBox;
-    lblHIGHLIGHT2: TLabel;
-    lblHIGHLIGHT: TLabel;
+    Label1: TLabel;
     Label2: TLabel;
     Label3: TLabel;
     Label4: TLabel;
@@ -44,6 +45,7 @@ type
     Label6: TLabel;
     Label7: TLabel;
     lblConditionalJump: TLabel;
+    lblRegisterExample: TLabel;
     lblUnconditionalJump: TLabel;
     lblCall: TLabel;
     lblHex: TLabel;
@@ -59,10 +61,11 @@ type
     Panel5: TPanel;
     pmColors: TPopupMenu;
     procedure btnFontClick(Sender: TObject);
-    procedure btnHCOLORClick(Sender: TObject);
+    procedure btnRegisterViewFontClick(Sender: TObject);
     procedure btnHexFontClick(Sender: TObject);
     procedure Button2Click(Sender: TObject);
     procedure cbColorGroupChange(Sender: TObject);
+    procedure cbFontQualitySelect(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure GroupBox1Click(Sender: TObject);
@@ -92,7 +95,7 @@ type
     procedure setjlSpacing(s: integer);
     procedure applyfont;
   public
-    highlightcolor: TColor;
+    { public declarations }
     colors: TDisassemblerViewColors;
     property hexSpaceBetweenLines: integer read fhexspaceBetweenLines write setHexSpaceBetweenLines;
     property spaceAboveLines: integer read fspaceAboveLines write setSpaceAboveLines;
@@ -105,7 +108,7 @@ implementation
 
 { TfrmMemviewPreferences }
 
-uses MemoryBrowserFormUnit,ContrastColorPicker;
+uses MemoryBrowserFormUnit;
 
 resourcestring
   rsBackgroundColor = 'Background color';
@@ -169,6 +172,7 @@ begin
   lblHex.font:=FontDialog1.font;
 
   lblHexExample.Font:=fontdialog2.font;
+  lblRegisterExample.Font:=FontDialog3.font;
 
   oldstate:=csUndefined;
   cbColorGroupChange(cbColorGroup); //restore the colors
@@ -203,6 +207,7 @@ begin
   oldstate:=csUndefined;
   cbColorGroupChange(cbColorGroup);
 
+  //
   cbi.cbSize:=sizeof(cbi);
   if GetComboBoxInfo(cbColorGroup.handle, @cbi) then
     extrasize:=cbi.rcButton.Right-cbi.rcButton.Left+cbi.rcItem.Left
@@ -222,9 +227,6 @@ begin
   btnFont.Constraints.MinWidth:=i;
   cbColorGroup.Constraints.MinWidth:=i;
   btnHexFont.Constraints.MinWidth:=i;
-
-  lblHIGHLIGHT.Color:=highlightcolor;
-  lblHIGHLIGHT2.Color:=highlightcolor;
 end;
 
 procedure TfrmMemviewPreferences.GroupBox1Click(Sender: TObject);
@@ -359,18 +361,13 @@ begin
   end;
 end;
 
-procedure TfrmMemviewPreferences.btnHCOLORClick(Sender: TObject);
-var picker:TColorContrastPicker;
+procedure TfrmMemviewPreferences.btnRegisterViewFontClick(Sender: TObject);
 begin
-    picker:=TColorContrastPicker.Create(self);
-    picker.CurrentHighlightColor:=HighLightColor;
-    if(mrOK=picker.ShowModal)then
-    begin
-      highlightcolor:=picker.CurrentHighlightColor;
-      lblHIGHLIGHT.Color:=HighLightColor;
-      lblHIGHLIGHT2.Color:=HighLightColor;
-    end;
-    picker.Free;
+  if fontdialog3.execute then
+  begin
+    btnRegisterViewFont.Caption:=fontdialog3.Font.Name+' '+inttostr(fontdialog3.Font.Size);
+    applyfont;
+  end;
 end;
 
 procedure TfrmMemviewPreferences.btnHexFontClick(Sender: TObject);
@@ -419,6 +416,17 @@ begin
     lblHex.Font.color:=colors[oldstate].hexcolor;
   end;
 end;
+
+procedure TfrmMemviewPreferences.cbFontQualitySelect(Sender: TObject);
+begin
+  if cbFontQuality.ItemIndex<>-1 then
+  begin
+    fontdialog2.Font.quality:=TFontQuality(cbFontQuality.ItemIndex);
+    applyfont;
+  end;
+
+end;
+
 
 initialization
   {$I frmMemviewPreferencesUnit.lrs}

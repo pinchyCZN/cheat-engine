@@ -1,21 +1,20 @@
 object frmDisassemblyscan: TfrmDisassemblyscan
-  Left = 503
-  Height = 170
-  Top = 372
+  Left = 1079
+  Height = 185
+  Top = 386
   Width = 447
   Caption = 'Assemblyscan'
-  ClientHeight = 170
+  ClientHeight = 185
   ClientWidth = 447
   OnClose = FormClose
   OnDestroy = FormDestroy
   OnShow = FormShow
-  PopupMode = pmAuto
   Position = poScreenCenter
-  LCLVersion = '1.6.0.4'
+  LCLVersion = '1.6.4.0'
   object Label1: TLabel
     Left = 0
     Height = 15
-    Top = 155
+    Top = 150
     Width = 447
     Align = alBottom
     Alignment = taCenter
@@ -24,35 +23,33 @@ object frmDisassemblyscan: TfrmDisassemblyscan
   end
   object ListBox1: TListBox
     Left = 0
-    Height = 155
+    Height = 150
     Top = 0
     Width = 379
     Align = alClient
     ItemHeight = 0
     MultiSelect = True
     OnDblClick = ListBox1DblClick
-    OnKeyDown = ListBox1KeyDown
     PopupMenu = PopupMenu1
     TabOrder = 0
   end
   object Panel1: TPanel
     Left = 379
-    Height = 155
+    Height = 150
     Top = 0
     Width = 68
     Align = alRight
     AutoSize = True
-    ClientHeight = 155
+    ClientHeight = 150
     ClientWidth = 68
     TabOrder = 1
-    OnClick = Panel1Click
     OnResize = Panel1Resize
     object btnCancel: TButton
       AnchorSideBottom.Control = Panel1
       AnchorSideBottom.Side = asrBottom
       Left = 3
       Height = 25
-      Top = 127
+      Top = 122
       Width = 62
       Anchors = [akLeft, akBottom]
       AutoSize = True
@@ -64,6 +61,16 @@ object frmDisassemblyscan: TfrmDisassemblyscan
       OnClick = btnCancelClick
       TabOrder = 0
     end
+  end
+  object ProgressBar1: TProgressBar
+    AnchorSideTop.Control = Label1
+    Left = 0
+    Height = 20
+    Top = 165
+    Width = 447
+    Align = alBottom
+    Anchors = [akLeft, akBottom]
+    TabOrder = 2
   end
   object Timer1: TTimer
     OnTimer = Timer1Timer

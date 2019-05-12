@@ -80,6 +80,7 @@ type
     edtFilename: TEdit;
     edtWorkerCount: TEdit;
     Flusher: TTimer;
+    umImageList: TImageList;
     Label1: TLabel;
     Label2: TLabel;
     Label3: TLabel;
@@ -994,13 +995,12 @@ begin
         a:=validlist[i].lastFromAddress
       else
         a:=validlist[i].toAddress;
+
+      a2:=a;
+      disassemble(a2);
+
+      advancedoptions.AddToCodeList(a, a2-a,false,true);
     end;
-
-    a2:=a;
-    disassemble(a2);
-
-
-    advancedoptions.AddToCodeList(a, a2-a,false,true);
   end;
 end;
 

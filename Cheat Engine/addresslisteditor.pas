@@ -21,6 +21,8 @@ when the view is scrolled/collapsed/expanded the owner should call UpdatePositio
 
 {$mode delphi}
 
+//{$warn 3057 off}
+
 interface
 
 uses

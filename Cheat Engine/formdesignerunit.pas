@@ -16,7 +16,6 @@ uses
 
 
 
-
 type
 
   { TFormDesigner }
@@ -26,6 +25,7 @@ type
     ImageList1: TImageList;
     MainMenu1: TMainMenu;
     MenuItem1: TMenuItem;
+    MenuItem2: TMenuItem;
     miAnchorEditor: TMenuItem;
     miMenuSep: TMenuItem;
     miMenuMoveUp: TMenuItem;
@@ -44,6 +44,7 @@ type
     OpenDialog1: TOpenDialog;
     PopupMenu1: TPopupMenu;
     controlPopup: TPopupMenu;
+    pmToolbar: TPopupMenu;
     SaveDialog1: TSaveDialog;
     ToolBar1: TToolBar;
     CEButton: TToolButton;
@@ -75,6 +76,7 @@ type
     SelectDirectoryDialog: TToolButton;
     RadioButton: TToolButton;
     ScrollBox: TToolButton;
+    CheckListBox: TToolButton;
     ToolButton6: TToolButton;
     CEImage: TToolButton;
     procedure controlPopupPopup(Sender: TObject);
@@ -83,6 +85,7 @@ type
     procedure FormDestroy(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure foundlist3Data(Sender: TObject; Item: TListItem);
+    procedure MenuItem2Click(Sender: TObject);
     procedure miAddItemsClick(Sender: TObject);
     procedure miAddSubMenuClick(Sender: TObject);
     procedure miAddTabClick(Sender: TObject);
@@ -120,6 +123,9 @@ type
     ComponentTreeWindowProc: TWndMethod;
 
     //anchorEditor: TAnchorDesigner;
+
+    ObjectInspectorSelectionChangeCount: integer;
+    DesignerSelectionChangeCount: integer;
 
     procedure UpdateMethodListIfNeeded;
 
@@ -191,7 +197,7 @@ implementation
 { TFormDesigner }
 
 
-uses mainunit;
+uses mainunit, DPIHelper{$if lcl_fullversion>=2000000}, LazMsgDialogs{$endif};
 
 resourcestring
   rsInvalidObject = '{Invalid object}';
@@ -211,6 +217,17 @@ procedure TFormDesigner.foundlist3Data(Sender: TObject; Item: TListItem);
 begin
   item.caption:=inttostr(item.index);
   item.SubItems.Add(inttostr(globalcounter*(1+item.index)));
+end;
+
+procedure TFormDesigner.MenuItem2Click(Sender: TObject);
+var classname: string;
+begin
+  classname:='';
+  if inputquery('Custom class','Enter the component you wish to add. (E.g TButton)',classname) then
+  begin
+    componentToAdd:=classname;
+    NoSelection.Down:=false;
+  end;
 end;
 
 procedure TFormDesigner.miAddItemsClick(Sender: TObject);
@@ -575,8 +592,13 @@ begin
   LazIDESelectDirectory:=IDESelectDirectory;
   idedialogs.InitIDEFileDialog:=self.InitIDEFileDialog;
   idedialogs.StoreIDEFileDialog:=self.InitIDEFileDialog;
+  {$if lcl_fullversion>=2000000}
+  LazMsgDialogs.LazMessageDialog:=self.IDEMessageDialog;
+  LazMsgDialogs.LazQuestionDialog:=self.IDEQuestionDialog;
+  {$else}
   idedialogs.IDEMessageDialog:=self.IDEMessageDialog;
   idedialogs.IDEQuestionDialog:=self.IDEQuestionDialog;
+  {$endif}
 
   SurfaceList:=tlist.create;
 
@@ -613,20 +635,24 @@ end;
 
 
 procedure TFormDesigner.OIDDestroy(sender: Tobject);
+var x: array of integer;
 begin
-  saveformposition(TObjectInspectorDlg(sender),[]);
+  setlength(x,1);
+  x[0]:=TObjectInspectorDlg(sender).PropertyGrid.SplitterX;
+  saveformposition(TObjectInspectorDlg(sender), x);
 end;
 
 procedure TFormDesigner.FormDestroy(Sender: TObject);
 begin
-  saveformposition(self,[]);
+  saveformposition(self);
   if methodlist<>nil then
     freeandnil(methodlist);
 end;
 
 procedure TFormDesigner.FormShow(Sender: TObject);
 begin
-  self.clientheight:=toolbar1.height;
+  dpihelper.AdjustToolbar(Toolbar1);
+  self.clientheight:=max(toolbar1.height, toolbar1.ButtonHeight);
 end;
 
 
@@ -635,6 +661,7 @@ begin
   ioclass:=componentToAdd;
   componentToAdd:='';
   NoSelection.down:=true;
+  oid.OnSelectPersistentsInOI:=nil;
 end;
 
 procedure TFormDesigner.ObjectInspectorSelectionChange(sender: tobject);
@@ -642,7 +669,14 @@ procedure TFormDesigner.ObjectInspectorSelectionChange(sender: tobject);
 var s: TPersistentSelectionList;
   i: integer;
   surface: TJvDesignSurface;
+
+  p: TPersistent;
 begin
+  if ObjectInspectorSelectionChangeCount<>0 then exit;
+
+  ObjectInspectorSelectionChangeCount:=1;
+
+
   if GlobalDesignHook.LookupRoot<>nil then
   begin
     surface:=TCEform(GlobalDesignHook.LookupRoot).designsurface;
@@ -657,7 +691,12 @@ begin
         s:=oid.Selection;
 
         for i:=0 to s.Count-1 do
-          surface.Selector.AddToSelection(tcontrol(s[i]));
+        begin
+          p:=s[i];
+
+          if p is tcontrol then
+            surface.Selector.AddToSelection(tcontrol(p));
+        end;
 
         surface.onselectionchange:=designerSelectionChange;
 
@@ -666,6 +705,8 @@ begin
 
     end;
   end;
+
+  ObjectInspectorSelectionChangeCount:=0;
 
 end;
 
@@ -688,6 +729,9 @@ var s: TJvDesignObjectArray;
   sl: TPersistentSelectionList;
 begin
   //oid.
+  if DesignerSelectionChangeCount<>0 then exit;
+  DesignerSelectionChangeCount:=1;
+
   if GlobalDesignHook=nil then exit;
 
   surface:=TJvDesignSurface(sender);
@@ -740,12 +784,14 @@ begin
 //  sl.free;
 
   setFormName;
+
+  DesignerSelectionChangeCount:=0;
 end;
 
 procedure TFormDesigner.surfaceOnChange(sender: tobject);
 begin
+  oid.FillComponentList;
   oid.RefreshPropertyValues;
-
   oid.RefreshComponentTreeSelection;
 
   if GlobalDesignHook=nil then exit;
@@ -753,8 +799,7 @@ begin
   if (GlobalDesignHook.LookupRoot<>nil) and (GlobalDesignHook.LookupRoot is TCEForm) then
     TCEForm(GlobalDesignHook.LookupRoot).ResyncWithLua;
 
-
-
+  oid.OnSelectPersistentsInOI:=ObjectInspectorSelectionChange; //called after the object has been created
 end;
 
 function TFormDesigner.onCreateMethod(const Name: ShortString; ATypeInfo: PTypeInfo; APersistent: TPersistent; const APropertyPath: string): TMethod;
@@ -969,8 +1014,6 @@ begin
 
 end;
 
-
-
 procedure TFormDesigner.OnWriteMethod(Writer: TWriter; Instance: TPersistent; PropInfo: PPropInfo; const MethodValue, DefMethodValue: TMethod; var Handled: boolean);
 begin
   if (MethodValue.data<>nil) and (tobject(MethodValue.data) is TLuaCaller)  then
@@ -1056,10 +1099,13 @@ var x: array of integer;
   miChangeCheckboxSetting: TMenuItem;
   reg: Tregistry;
   i: integer;
+  dpmi: tmenuitem;
 begin
   GlobalDesignHook.LookupRoot:=f;
 
   setFormName;
+
+//  f.designsurface.OnChange
 
   if oid=nil then //no oid yet
   begin
@@ -1068,6 +1114,9 @@ begin
     oid.PropertyEditorHook:=GlobalDesignHook; //needs to be created
     oid.ShowFavorites:=false;
     oid.ComponentTree.PopupMenu:=popupmenu1; //nil;
+
+    oid.EnableHookGetSelection:=true;
+
 
 
     {$ifndef OLDLAZARUS11}
@@ -1103,12 +1152,15 @@ begin
     ComponentTreeWindowProc:=oid.ComponentTree.WindowProc;
 
 
-    oid.ComponentTree.WindowProc:=mousedownhack;
+    //oid.ComponentTree.WindowProc:=mousedownhack;
 
     oid.OnSelectPersistentsInOI:=ObjectInspectorSelectionChange;
 
-    oid.DeletePopupmenuItem.OnClick:=oidOnDelete;
+    dpmi:=tmenuitem(oid.FindComponent('DeletePopupmenuItem'));
+    if dpmi<>nil then
+      dpmi.OnClick:=oidOnDelete;
     oid.ComponentTree.OnKeyDown:=oidComponentTreeKeyDown;
+    //oid.ComponentTree.PropertyEditorHook;
 
     oid.Selection.Add(f);
 
@@ -1117,16 +1169,35 @@ begin
     begin
       oid.left:=0;
       oid.top:=0;
-    end;
+      oid.height:=screen.WorkAreaHeight;
+      oid.show;
 
-    oid.show;
+      oid.PropertyGrid.PreferredSplitterX:=oid.canvas.TextWidth('XXXXXXXXXXXXXXXX');
+      oid.EventGrid.PreferredSplitterX:=oid.canvas.TextWidth('XXXXXXXXXXXXXXXX');
+
+      oid.PropertyGrid.SplitterX:=oid.propertygrid.preferredSplitterX;
+      oid.EventGrid.SplitterX:=oid.propertygrid.preferredSplitterX;
+      oid.width:=oid.PropertyGrid.PreferredSplitterX*2+oid.PropertyGrid.Indent;
+
+      oid.AutoSize:=false;
+    end
+    else
+    begin
+      oid.show;
+      if length(x)>0 then
+      begin
+        oid.PropertyGrid.PreferredSplitterX:=x[0];
+        oid.EventGrid.PreferredSplitterX:=x[0];
+        oid.PropertyGrid.SplitterX:=x[0];
+        oid.EventGrid.SplitterX:=x[0];
+      end;
+    end;
     {
     oipgpProperties,
     oipgpEvents,
     oipgpFavorite,
     oipgpRestricted
     }
-
 
 
     oid.DefaultItemHeight:=max(oid.DefaultItemHeight, oid.Canvas.TextHeight('QFDZj')+2); //make sure the itemheight fits the current dpi

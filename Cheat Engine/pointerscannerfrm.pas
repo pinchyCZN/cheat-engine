@@ -14,7 +14,8 @@ uses
   NewKernelHandler, valuefinder, PointerscanresultReader, maps, zstream,
   WinSock2, Sockets, registry, PageMap, CELazySocket,
   PointerscanNetworkCommands, resolve, pointeraddresslist, pointerscanworker,
-  PointerscanStructures, PointerscanController, sqlite3conn, sqldb, frmSelectionlistunit, commonTypeDefs;
+  PointerscanStructures, PointerscanController, sqlite3conn, sqldb,
+  frmSelectionlistunit, commonTypeDefs;
 
 
 
@@ -166,12 +167,15 @@ type
     edtPassword: TEdit;
     edtPort: TEdit;
     gbNetwork: TGroupBox;
+    psImageList: TImageList;
     lblIP: TLabel;
     lblPort: TLabel;
     lblPassword: TLabel;
     lblThreadPriority: TLabel;
     lblProgressbar1: TLabel;
     MenuItem1: TMenuItem;
+    miSigned: TMenuItem;
+    miHexadecimal: TMenuItem;
     miDisconnect: TMenuItem;
     miForceDisconnect: TMenuItem;
     miExportTosqlite: TMenuItem;
@@ -197,6 +201,7 @@ type
     Method3Fastspeedandaveragememoryusage1: TMenuItem;   //I should probably rename this, it's not really, 'average memory usage' anymore...
     N1: TMenuItem;
     miInfoPopup: TPopupMenu;
+    pmType: TPopupMenu;
     ProgressBar1: TProgressBar;
     Rescanmemory1: TMenuItem;
     SaveDialog1: TSaveDialog;
@@ -219,6 +224,7 @@ type
     procedure cbPriorityChange(Sender: TObject);
     procedure cbTestCrappyConnectionChange(Sender: TObject);
     procedure cbNonResponsiveChange(Sender: TObject);
+    procedure cbTypeDropDown(Sender: TObject);
 
     procedure FormDestroy(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -252,6 +258,7 @@ type
     procedure cbTypeChange(Sender: TObject);
   private
     { Private declarations }
+    loadedFormPosition: boolean;
     start:tdatetime;
 
     rescan: trescanpointers;
@@ -356,7 +363,8 @@ uses PointerscannerSettingsFrm, frmMemoryAllocHandlerUnit, frmSortPointerlistUni
   LuaHandler, lauxlib, lua, frmPointerscanConnectDialogUnit,
   frmpointerrescanconnectdialogunit, frmMergePointerscanResultSettingsUnit,
   ProcessHandlerUnit, frmResumePointerscanUnit, PointerscanConnector,
-  frmSetupPSNNodeUnit, PointerscanNetworkStructures, parsers;
+  frmSetupPSNNodeUnit, PointerscanNetworkStructures, parsers, byteinterpreter,
+  CustomTypeHandler, ceregistry, vartypestrings;
 
 resourcestring
   rsErrorDuringScan = 'Error during scan';
@@ -1032,6 +1040,7 @@ begin
         al.free;
       end;
 
+      staticscanner.negativeOffsets:=frmpointerscannersettings.cbNegativeOffsets.checked;
       staticscanner.compressedptr:=frmpointerscannersettings.cbCompressedPointerscanFile.checked;
 
       staticscanner.noReadOnly:=frmpointerscannersettings.cbNoReadOnly.checked;
@@ -1078,6 +1087,7 @@ begin
       staticscanner.maxlevel:=frmpointerscannersettings.maxlevel-1;
 
 
+      staticscanner.progressbarLabel:=lblProgressbar1;
       staticscanner.progressbar:=progressbar1;
       staticscanner.threadcount:=frmpointerscannersettings.threadcount;
       staticscanner.scannerpriority:=frmpointerscannersettings.scannerpriority;
@@ -1295,6 +1305,7 @@ var
   name: string;
   maxlevel: string;
   compressedptr, unalligned, MaxBitCountModuleIndex, MaxBitCountModuleOffset, MaxBitCountLevel, MaxBitCountOffset: string;
+  DidBaseRangeScan, BaseScanRange: string;
 
   tablenames: Tstringlist;
   fieldnames: tstringlist;
@@ -1344,7 +1355,9 @@ begin
 	                      '`MaxBitCountModuleIndex`	INTEGER,'+
 	                      '`MaxBitCountModuleOffset`	INTEGER,'+
 	                      '`MaxBitCountLevel`	INTEGER,'+
-	                      '`MaxBitCountOffset`	INTEGER);');
+	                      '`MaxBitCountOffset`	INTEGER,'+
+	                      '`DidBaseRangeScan`	INTEGER,'+
+	                      '`BaseScanRange`	INTEGER);');
 
         sqlite3.ExecuteDirect('CREATE UNIQUE INDEX "id_idx" ON pointerfiles( "ptrid" );');
       end;
@@ -1388,7 +1401,7 @@ begin
         sqlite3.GetFieldNames('results', fieldnames);
 
         for i:=1 to pointerscanresults.offsetCount do
-          if fieldnames.indexof('offset'+inttostr(i))=0 then
+          if fieldnames.indexof('offset'+inttostr(i))=-1 then
             sqlite3.ExecuteDirect('ALTER TABLE results ADD COLUMN offset'+inttostr(i)+' integer');
 
         fieldnames.free;
@@ -1457,8 +1470,13 @@ begin
         MaxBitCountOffset:='NULL';
       end;
 
+      DidBaseRangeScan:=inttostr(ifthen(Pointerscanresults.DidBaseRangeScan, 1, 0));
+      if Pointerscanresults.DidBaseRangeScan then
+        BaseScanRange:=inttostr(Pointerscanresults.BaseScanRange)
+      else
+        BaseScanRange:='NULL';
 
-      s:='INSERT INTO pointerfiles (name, maxlevel, compressedptr, unalligned, MaxBitCountModuleIndex, MaxBitCountModuleOffset, MaxBitCountLevel, MaxBitCountOffset) values ("'+name+'", '+maxlevel+','+compressedptr+','+unalligned+','+MaxBitCountModuleIndex+','+MaxBitCountModuleOffset+','+MaxBitCountLevel+','+MaxBitCountOffset+')';
+      s:='INSERT INTO pointerfiles (name, maxlevel, compressedptr, unalligned, MaxBitCountModuleIndex, MaxBitCountModuleOffset, MaxBitCountLevel, MaxBitCountOffset, DidBaseRangeScan, BaseScanRange) values ("'+name+'", '+maxlevel+','+compressedptr+','+unalligned+','+MaxBitCountModuleIndex+','+MaxBitCountModuleOffset+','+MaxBitCountLevel+','+MaxBitCountOffset+','+DidBaseRangeScan+','+BaseScanRange+')';
 
       sqlite3.ExecuteDirect(s);
       for i:=0 to Pointerscanresults.EndsWithOffsetListCount-1 do
@@ -1564,9 +1582,9 @@ var
 
   oldpb: string;
 begin
-  if (sdSqlite.execute) then
+  if (odSqlite.execute) then
   begin
-    filename:=utf8toansi(sdsqlite.FileName);
+    filename:=utf8toansi(odsqlite.FileName);
 
     SQLite3.DatabaseName:=filename;
     sqlite3.Connected:=true;
@@ -1599,6 +1617,7 @@ begin
         exit;
     finally
       f.free;
+      l.free;
     end;
 
     savedialog1.FileName:=name;
@@ -1708,6 +1727,16 @@ begin
         ptrfile.WriteByte(0);
       end;
 
+      l:=tstringlist.create;
+      sqlite3.GetFieldNames('pointerfiles', l);
+      if (l.indexof('DidBaseRangeScan')<>-1) and (SQLQuery.FieldByName('DidBaseRangeScan').AsInteger=1) then
+      begin
+        ptrfile.WriteByte(1);
+        ptrfile.WriteQWord(SQLQuery.FieldByName('BaseScanRange').AsLargeInt);
+      end
+      else
+        ptrfile.WriteByte(0);
+      l.free;
 
     finally
       if ptrfile<>nil then
@@ -1849,7 +1878,7 @@ begin
         freeandnil(resultptrfile);
 
       if compressedEntry<>nil then
-        freemem(compressedEntry);
+        freememandnil(compressedEntry);
     end;
 
 
@@ -1936,11 +1965,18 @@ end;
 
 
 procedure Tfrmpointerscanner.FormDestroy(Sender: TObject);
-var x: array of integer;
+var reg: Tregistry;
 begin
-  setlength(x,1);
-  x[0]:=cbtype.itemindex;
-  SaveFormPosition(self, x);
+  SaveFormPosition(self);
+
+  reg:=tregistry.create;
+  if reg.OpenKey('\Software\Cheat Engine\Pointerscan', true) then
+  begin
+    reg.writeInteger('Display Type', cbtype.itemindex);
+    reg.writeBool('Display Signed',miSigned.checked);
+    reg.writeBool('Display Hexadecimal',miHexadecimal.checked);
+  end;
+  reg.free;
 end;
 
 procedure Tfrmpointerscanner.FormKeyDown(Sender: TObject; var Key: Word;
@@ -2012,6 +2048,21 @@ begin
   debug_nonresponsiveconnection:=cbNonResponsive.checked;
 end;
 
+procedure Tfrmpointerscanner.cbTypeDropDown(Sender: TObject);
+var i: integer;
+begin
+  //fill in custom types
+  while cbtype.Items.Count>8 do
+  begin
+    cbtype.Items.Delete(8); //delete the ones in the list
+  end;
+
+  for i:=0 to customtypes.Count-1 do
+    cbtype.Items.AddObject(TcustomType(customtypes[i]).name,customtypes[i]);
+
+  cbtype.DropDownCount:=max(12, cbtype.Items.Count);
+end;
+
 
 procedure Tfrmpointerscanner.FormResize(Sender: TObject);
 begin
@@ -2028,6 +2079,14 @@ begin
   i:=max(i, pnlControl.ClientWidth-2);
   btnIncreaseThreadCount.width:=i;
   btnDecreaseThreadCount.width:=i;
+
+  if loadedFormPosition=false then
+  begin
+    width:=MainForm.width;
+    height:=mainform.height;
+
+    loadedFormPosition:=true;
+  end;
 end;
 
 procedure Tfrmpointerscanner.lvResultsColumnClick(Sender: TObject; Column: TListColumn);
@@ -2133,7 +2192,10 @@ var i,j: integer;
     sl: TStringList;
 begin
   if lvResults.Visible then
+  begin
+    lvResults.Update;
     lvResults.repaint;
+  end;
 
   try
     //collect data and then update the treeview
@@ -2824,7 +2886,7 @@ begin
 
       flushresults;
     finally
-      freemem(tempvalue);
+      freememandnil(tempvalue);
 
       if tempfile<>nil then
         freeandnil(tempfile);
@@ -3497,6 +3559,21 @@ var
   x: array of integer;
   reg: tregistry;
 begin
+  cbtype.Onchange:=nil;
+  cbtype.Items.clear;
+
+  cbtype.Items.Add(rs_vtByte);
+  cbtype.Items.Add(rs_vtWord);
+  cbtype.Items.Add(rs_vtDword);
+  cbtype.Items.Add(rs_vtQword);
+  cbtype.Items.Add(rs_vtSingle);
+  cbtype.Items.Add(rs_vtDouble);
+  cbtype.Items.Add(rs_vtString);
+  cbtype.Items.Add(rs_vtWidestring);
+
+  cbtype.itemindex:=2;
+
+
   {$ifdef cpu64}
     SQLiteLibraryName:='.\win64\sqlite3.dll';
   {$else}
@@ -3513,12 +3590,25 @@ begin
   lvResults.Visible:=true;
 
   setlength(x,1);
-  if loadformposition(self,x) then
-    cbtype.itemindex:=x[0];
+  loadedFormPosition:=loadformposition(self);
+
 
   reg:=TRegistry.Create;
 
+  if reg.OpenKey('\Software\Cheat Engine\Pointerscan', false) then
+  begin
+    if reg.ValueExists('Display Type') then
+      cbtype.itemindex:=reg.ReadInteger('Display Type');
+
+    if reg.ValueExists('Display Signed') then
+      miSigned.checked:=reg.ReadBool('Display Signed');
+
+    if reg.ValueExists('Display Hexadecimal') then
+      miHexadecimal.checked:=reg.readBool('Display Hexadecimal');
+  end;
+
   reg.free;
+  cbtype.onchange:=cbTypeChange;
 end;
 
 procedure Tfrmpointerscanner.lvResultsData(Sender: TObject;
@@ -3528,12 +3618,17 @@ var
   i: integer;
   s: string;
   check: boolean; 
-  doublevalue: double;
+{  doublevalue: double;
+  bytevalue: byte absolute doublevalue;
   dwordvalue: dword absolute doublevalue; //make sure of the same memory
-  floatvalue: single absolute doublevalue;
+  floatvalue: single absolute doublevalue;}
   x: ptruint;
 
   address: ptrUint;
+
+
+  vartype: TVariableType;
+  ct: TCustomType=nil;
 
 begin
   if Pointerscanresults<>nil then
@@ -3553,7 +3648,12 @@ begin
       end;
 
       for i:=p.offsetcount-1 downto 0 do
-        item.SubItems.Add(inttohex(p.offsets[i],1));
+      begin
+        if p.offsets[i]<0 then
+          item.SubItems.Add('-'+inttohex(-p.offsets[i],1))
+        else
+          item.SubItems.Add(inttohex(p.offsets[i],1));
+      end;
 
       for i:=p.offsetcount to Pointerscanresults.offsetCount-1 do
         item.SubItems.Add('');
@@ -3561,11 +3661,36 @@ begin
       if address=0 then
         item.SubItems.Add('-') else
       begin
-        s:=inttohex(address,8);
+        vartype:=vtDword;
+        case cbtype.itemindex of
+          0: vartype:=vtByte;
+          1: vartype:=vtWord;
+          2: vartype:=vtDWord;
+          3: vartype:=vtQword;
+          4: vartype:=vtSingle;
+          5: vartype:=vtDouble;
+          6: vartype:=vtString;
+          7: vartype:=vtUnicodeString;
+        end;
+
+        if cbtype.itemindex>=8 then
+        begin
+          vartype:=vtCustom;
+          ct:=TCustomType(cbtype.Items.Objects[cbtype.itemindex]);
+        end;
+
+        s:=inttohex(address,8) + ' = ' + readAndParseAddress(address, vartype, ct,miHexadecimal.checked, miSigned.checked, 128);
+
+       {
+
         if cbType.ItemIndex<>-1 then
         begin
           s:=s+' = ';
-          if cbType.ItemIndex=2 then
+
+          case cbType.ItemIndex of
+
+          end;
+          if cbType.ItemIndex in [3,8] then
             check:=readprocessmemory(processhandle, pointer(address),@doublevalue,8,x) else
             check:=readprocessmemory(processhandle, pointer(address),@doublevalue,4,x);
 
@@ -3577,7 +3702,7 @@ begin
               2: s:=s+floattostr(doublevalue);
             end;
           end else s:=s+'??';
-        end;
+        end;      }
 
         item.SubItems.Add(s);
 
@@ -3608,6 +3733,8 @@ var
   c: integer;
 
   vtype: TVariableType;
+  ct: TcustomType;
+  ctname: string;
 begin
   if lvResults.ItemIndex<>-1 then
   begin
@@ -3621,18 +3748,34 @@ begin
       for i:=li.SubItems.Count-2 downto 0 do
       begin
         if li.SubItems[i]='' then continue;
-        offsets[c]:=strtoint('$'+li.SubItems[i]);
+        if li.SubItems[i][1]='-' then
+          offsets[c]:=-strtoint('$'+copy(li.SubItems[i],2,length(li.SubItems[i])))
+        else
+          offsets[c]:=strtoint('$'+li.SubItems[i]);
+
         inc(c);
       end;
 
-
-      case cbType.ItemIndex of
-        1: vtype:=vtSingle;
-        2: vtype:=vtDouble;
-        else vtype:=vtDword;
+      vtype:=vtDword;
+      ctname:='';
+      case cbtype.itemindex of
+        0: vtype:=vtByte;
+        1: vtype:=vtWord;
+        2: vtype:=vtDWord;
+        3: vtype:=vtQword;
+        4: vtype:=vtSingle;
+        5: vtype:=vtDouble;
       end;
 
-      mainform.addresslist.addaddress(rsPointerscanResult, t, offsets, c, vtype);
+      if cbtype.itemindex>=6 then
+      begin
+        vtype:=vtCustom;
+        ct:=TCustomType(cbtype.Items.Objects[cbtype.itemindex]);
+        ctname:=ct.name;
+      end;
+
+
+      mainform.addresslist.addaddress(rsPointerscanResult, t, offsets, c, vtype, ctname);
     except
 
     end;

@@ -7,7 +7,8 @@ interface
 uses
   LCLIntf, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, CEDebugger, debughelper, KernelDebugger, CEFuncProc,
-  NewKernelHandler, symbolhandler, LResources, ExtCtrls;
+  NewKernelHandler, symbolhandler, LResources, ExtCtrls, DBK32functions,
+  vmxfunctions, math;
 
 type
 
@@ -22,6 +23,8 @@ type
     cbPF: TCheckBox;
     cbSF: TCheckBox;
     cbZF: TCheckBox;
+    cbUseDBVM: TCheckBox;
+    edtPA: TEdit;
     edtEAX: TEdit;
     edtEBP: TEdit;
     edtEBX: TEdit;
@@ -40,6 +43,7 @@ type
     edtR8: TEdit;
     edtR9: TEdit;
     Label1: TLabel;
+    Label10: TLabel;
     Label16: TLabel;
     Label17: TLabel;
     Label18: TLabel;
@@ -62,9 +66,11 @@ type
     Panel2: TPanel;
     Panel3: TPanel;
     Panel4: TPanel;
+    procedure cbUseDBVMChange(Sender: TObject);
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     procedure Button1Click(Sender: TObject);
     procedure FormCreate(Sender: TObject);
+    procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
   private
     { Private declarations }
@@ -79,7 +85,8 @@ var
 
 implementation
 
-uses formsettingsunit, MemoryBrowserFormUnit, debuggertypedefinitions, ProcessHandlerUnit;
+uses formsettingsunit, MemoryBrowserFormUnit, debuggertypedefinitions,
+  ProcessHandlerUnit, DPIHelper;
 
 resourcestring
   rsModifyRegistersSAt = 'Modify registers(s) at %s';
@@ -188,10 +195,24 @@ begin
   action:=cafree;
 end;
 
+procedure TfrmModifyRegisters.cbUseDBVMChange(Sender: TObject);
+var pa: int64;
+begin
+  if cbUseDBVM.checked then
+  begin
+    if GetPhysicalAddress(processhandle, pointer(address), PA) then
+      edtPA.Text:=inttohex(pa,8);
+  end;
+end;
+
 
 procedure TfrmModifyRegisters.Button1Click(Sender: TObject);
 var
-    tempregedit:tregistermodificationBP;
+  tempregedit:tregistermodificationBP;
+
+  changereginfo: tchangeregonbpinfo;
+  PA: qword;
+  bpid: integer;
 begin
   tempregedit.address:=address;
   tempregedit.change_eax:=edtEAX.text<>'';
@@ -247,6 +268,71 @@ begin
   if tempregedit.change_sf then tempregedit.new_sf:=cbSF.checked;
   if tempregedit.change_of then tempregedit.new_of:=cbOF.checked;
 
+
+  if cbUseDBVM.checked then
+  begin
+    if loaddbvmifneeded('Launch DBVM?') then
+    begin
+      pa:=strtoint64('$'+edtPA.text);
+
+      //convert to a changereginfo
+      changereginfo.Flags.changeRAX:=ifthen(tempregedit.change_eax,1,0);
+      changereginfo.Flags.changeRBX:=ifthen(tempregedit.change_ebx,1,0);
+      changereginfo.Flags.changeRCX:=ifthen(tempregedit.change_ecx,1,0);
+      changereginfo.Flags.changeRDX:=ifthen(tempregedit.change_edx,1,0);
+      changereginfo.Flags.changeRSI:=ifthen(tempregedit.change_esi,1,0);
+      changereginfo.Flags.changeRDI:=ifthen(tempregedit.change_edi,1,0);
+      changereginfo.Flags.changeRBP:=ifthen(tempregedit.change_ebp,1,0);
+      changereginfo.Flags.changeRSP:=ifthen(tempregedit.change_esp,1,0);
+      changereginfo.Flags.changeRIP:=ifthen(tempregedit.change_eip,1,0);
+      changereginfo.Flags.changeR8:=ifthen(tempregedit.change_r8,1,0);
+      changereginfo.Flags.changeR9:=ifthen(tempregedit.change_r9,1,0);
+      changereginfo.Flags.changeR10:=ifthen(tempregedit.change_r10,1,0);
+      changereginfo.Flags.changeR11:=ifthen(tempregedit.change_r11,1,0);
+      changereginfo.Flags.changeR12:=ifthen(tempregedit.change_r12,1,0);
+      changereginfo.Flags.changeR13:=ifthen(tempregedit.change_r13,1,0);
+      changereginfo.Flags.changeR14:=ifthen(tempregedit.change_r14,1,0);
+      changereginfo.Flags.changeR15:=ifthen(tempregedit.change_r15,1,0);
+      changereginfo.Flags.changeCF:=ifthen(tempregedit.change_cf,1,0);
+      changereginfo.Flags.changePF:=ifthen(tempregedit.change_pf,1,0);
+      changereginfo.Flags.changeAF:=ifthen(tempregedit.change_af,1,0);
+      changereginfo.Flags.changeZF:=ifthen(tempregedit.change_zf,1,0);
+      changereginfo.Flags.changeSF:=ifthen(tempregedit.change_sf,1,0);
+      changereginfo.Flags.changeOF:=ifthen(tempregedit.change_of,1,0);
+
+      changereginfo.Flags.newCF:=ifthen(tempregedit.new_cf,1,0);
+      changereginfo.Flags.newPF:=ifthen(tempregedit.new_pf,1,0);
+      changereginfo.Flags.newAF:=ifthen(tempregedit.new_af,1,0);
+      changereginfo.Flags.newZF:=ifthen(tempregedit.new_zf,1,0);
+      changereginfo.Flags.newSF:=ifthen(tempregedit.new_sf,1,0);
+      changereginfo.Flags.newOF:=ifthen(tempregedit.new_of,1,0);
+
+      changereginfo.newRAX:=tempregedit.new_eax;
+      changereginfo.newRBX:=tempregedit.new_ebx;
+      changereginfo.newRCX:=tempregedit.new_ecx;
+      changereginfo.newRDX:=tempregedit.new_edx;
+      changereginfo.newRSI:=tempregedit.new_esi;
+      changereginfo.newRDI:=tempregedit.new_edi;
+      changereginfo.newRBP:=tempregedit.new_ebp;
+      changereginfo.newRSP:=tempregedit.new_esp;
+      changereginfo.newRIP:=tempregedit.new_eip;
+      changereginfo.newR8:=tempregedit.new_r8;
+      changereginfo.newR9:=tempregedit.new_r9;
+      changereginfo.newR10:=tempregedit.new_r10;
+      changereginfo.newR11:=tempregedit.new_r11;
+      changereginfo.newR12:=tempregedit.new_r12;
+      changereginfo.newR13:=tempregedit.new_r13;
+      changereginfo.newR14:=tempregedit.new_r14;
+      changereginfo.newR15:=tempregedit.new_r15;
+
+      dbvm_cloak_changeregonbp(PA, changereginfo, address);
+
+      memorybrowser.disassemblerview.Update;
+      modalresult:=mrok;
+      exit;
+    end;
+  end;
+
   //set a breakpoint at this spot
   if startdebuggerifneeded then
   begin
@@ -261,8 +347,48 @@ begin
 end;
 
 procedure TfrmModifyRegisters.FormCreate(Sender: TObject);
+var pref: string;
 begin
+  cbUseDBVM.visible:=isDBVMCapable and hasEPTSupport;
+  if isRunningDBVM and (debuggerthread=nil) then
+    cbUseDBVM.checked:=true;
 
+
+  label10.visible:=cbUseDBVM.checked;
+  edtPA.visible:=cbUseDBVM.checked;
+
+  if processhandler.is64bit then
+  begin
+    pref:='R'
+  end
+  else
+  begin
+    pref:='E'
+  end;
+
+  label1.Caption:=pref+'AX';
+  label2.Caption:=pref+'BX';
+  label3.Caption:=pref+'CX';
+  label4.Caption:=pref+'DX';
+  label5.Caption:=pref+'SI';
+  label6.Caption:=pref+'DI';
+  label7.Caption:=pref+'BP';
+  label8.Caption:=pref+'SP';
+  label9.Caption:=pref+'IP';
+end;
+
+procedure TfrmModifyRegisters.FormResize(Sender: TObject);
+var d: integer;
+begin
+  BeginUpdateBounds;
+  LockRealizeBounds;
+
+  d:=clientwidth-(panel3.Left+panel3.width);
+  edtEAX.Width:=edtEAX.Width+d;
+
+
+  UnlockRealizeBounds;
+  EndUpdateBounds;
 end;
 
 procedure TfrmModifyRegisters.FormShow(Sender: TObject);
@@ -286,9 +412,12 @@ begin
     edtR13.visible:=false;
     edtR14.visible:=false;
     edtR15.visible:=false;
-
     DoAutoSize;
   end;
+
+  autosize:=false;
+
+
 end;
 
 initialization

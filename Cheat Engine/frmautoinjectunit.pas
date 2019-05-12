@@ -6,11 +6,10 @@ interface
 
 uses
   windows, LCLIntf, Messages, SysUtils, Classes, Graphics, Controls, Forms, Dialogs,
-  StdCtrls, ExtCtrls, Menus, CEFuncProc, StrUtils, types, ComCtrls, LResources,
-  NewKernelHandler, SynEdit, SynHighlighterCpp, SynHighlighterAA, LuaSyntax, disassembler,
-  MainUnit2, Assemblerunit, autoassembler, symbolhandler, SynEditSearch, SynPluginMultiCaret,
-  MemoryRecordUnit, tablist, customtypehandler, registry, SynGutterBase, SynEditMarks,
-  luahandler, memscan, foundlisthelper, ProcessHandlerUnit, commonTypeDefs;
+  StdCtrls, ExtCtrls, Menus, MemoryRecordUnit, commonTypeDefs, customtypehandler,
+  disassembler, symbolhandler, symbolhandlerstructs, SynEdit, SynHighlighterCpp,
+  SynHighlighterAA, LuaSyntax, SynPluginMultiCaret, SynEditSearch, tablist,
+  SynGutterBase, SynEditMarks;
 
 
 type TCallbackRoutine=procedure(memrec: TMemoryRecord; script: string; changed: boolean) of object;
@@ -80,6 +79,7 @@ type
   { TfrmAutoInject }
 
   TfrmAutoInject = class(TForm)
+    aaImageList: TImageList;
     MainMenu1: TMainMenu;
     File1: TMenuItem;
     menuAOBInjection: TMenuItem;
@@ -125,6 +125,7 @@ type
     AAPref1: TMenuItem;
     procedure Button1Click(Sender: TObject);
     procedure FormKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure FormDropFiles(Sender: TObject; const FileNames: array of String);
     procedure Load1Click(Sender: TObject);
     procedure menuAOBInjectionClick(Sender: TObject);
     procedure menuFullInjectionClick(Sender: TObject);
@@ -182,8 +183,9 @@ type
 
 
     fScriptMode: TScriptMode;
-    fluamode: boolean;
     fCustomTypeScript: boolean;
+
+    shownonce: boolean;
 
     procedure setluamode(state: boolean);
     procedure setScriptMode(mode: TScriptMode);
@@ -212,6 +214,7 @@ type
     injectintomyself: boolean;
     procedure addTemplate(id: integer);
     procedure removeTemplate(id: integer);
+    procedure loadfile(filename: string);
     property CustomTypeScript: boolean read fCustomTypeScript write setCustomTypeScript;
   published
     property ScriptMode: TScriptMode read fScriptMode write setScriptMode;
@@ -234,7 +237,9 @@ implementation
 
 
 uses frmAAEditPrefsUnit,MainUnit,memorybrowserformunit,APIhooktemplatesettingsfrm,
-  Globals, Parsers, MemoryQuery, GnuAssembler, LuaCaller, SynEditTypes;
+  Globals, Parsers, MemoryQuery, GnuAssembler, LuaCaller, SynEditTypes, CEFuncProc,
+  StrUtils, types, ComCtrls, LResources, NewKernelHandler, MainUnit2, Assemblerunit,
+  autoassembler,  registry, luahandler, memscan, foundlisthelper, ProcessHandlerUnit;
 
 resourcestring
   rsExecuteScript = 'Execute script';
@@ -448,6 +453,7 @@ var
     a,b: integer;
 
     aa: TCEAllocArray;
+    exceptionlist: TCEExceptionListArray;
 
     //variables for injectintomyself:
     check: boolean;
@@ -482,8 +488,8 @@ begin
 
 
         try
-          check:=autoassemble(assemblescreen.lines,false,true,true,injectintomyself,aa,registeredsymbols,memrec) and
-                 autoassemble(assemblescreen.lines,false,false,true,injectintomyself,aa,registeredsymbols,memrec);
+          check:=autoassemble(assemblescreen.lines,false,true,true,injectintomyself,aa,exceptionlist,registeredsymbols,memrec) and
+                 autoassemble(assemblescreen.lines,false,false,true,injectintomyself,aa,exceptionlist,registeredsymbols,memrec);
 
           if not check then
             errmsg:=format(rsNotAllCodeIsInjectable,['']);
@@ -508,7 +514,16 @@ begin
             if editscript2 or CustomTypeScript then close;
           end;
         end;
-      end else autoassemble(assemblescreen.lines,true);
+      end
+      else
+      begin
+        try
+          autoassemble(assemblescreen.lines,true);
+        except
+          on e:exception do
+            MessageDlg(e.message,mtError,[mbOK],0);
+    end;
+      end;
     end;
 
     smGnuAssembler:
@@ -529,29 +544,39 @@ begin
     self.close;
 end;
 
-procedure TfrmAutoInject.Load1Click(Sender: TObject);
+procedure TfrmAutoInject.FormDropFiles(Sender: TObject; const FileNames: array of String);
+var load: boolean;
 begin
-{$ifndef standalonetrainerwithassembler}
+  if length(filenames)=0 then exit;
 
-  if opendialog1.Execute then
+  if mainform.editedsincelastsave then
+    load:=MessageDlg('Your last changes will be lost if you proceed. Continue?',mtConfirmation,[mbyes,mbno],0,mbNo)=mryes
+  else
+    load:=true;
+
+  if load then
+    loadfile(FileNames[0]);
+end;
+
+procedure TfrmAutoInject.loadFile(filename: string);
   begin
-
     assemblescreen.Lines.Clear;
-    assemblescreen.Lines.LoadFromFile(opendialog1.filename);
-    savedialog1.FileName:=opendialog1.filename;
+  assemblescreen.Lines.LoadFromFile(filename);
+  savedialog1.FileName:=filename;
     assemblescreen.AfterLoadFromFile;
-
-    SaveDialog1.FileName:=opendialog1.FileName;
 
     case ScriptMode of
       smAutoAssembler: caption:=rsAutoAssembler+':'+extractfilename(opendialog1.FileName);
       smLua: caption:=rsLUAScript+':'+extractfilename(opendialog1.FileName);
       smGnuAssembler: caption:=rsGNUAScript+':'+extractfilename(opendialog1.FileName);
     end;
-
-  end;
-{$endif}
 end;
+
+procedure TfrmAutoInject.Load1Click(Sender: TObject);
+begin
+  if opendialog1.Execute then
+    loadFile(opendialog1.filename);
+  end;
 
 procedure TfrmAutoInject.mifindNextClick(Sender: TObject);
 begin
@@ -913,15 +938,13 @@ procedure TfrmAutoInject.assemblescreenChange(Sender: TObject);
 begin
   if self=mainform.frmLuaTableScript then
     mainform.editedsincelastsave:=true;
-
-
 end;
-
 
 
 procedure TfrmAutoInject.Assigntocurrentcheattable1Click(Sender: TObject);
 var a,b: integer;
     aa:TCEAllocArray;
+    exceptionlist:TCEExceptionListArray;
     registeredsymbols: TStringlist;
 begin
   registeredsymbols:=tstringlist.Create;
@@ -935,8 +958,8 @@ begin
     getenableanddisablepos(assemblescreen.Lines,a,b);
     if (a=-1) and (b=-1) then raise exception.create(rsCodeNeedsEnableAndDisable);
 
-    if autoassemble(assemblescreen.lines,false,true,true,false,aa,registeredsymbols) and
-       autoassemble(assemblescreen.lines,false,false,true,false,aa,registeredsymbols) then
+    if autoassemble(assemblescreen.lines,false,true,true,false,aa,exceptionlist,registeredsymbols) and
+       autoassemble(assemblescreen.lines,false,false,true,false,aa,exceptionlist,registeredsymbols) then
     begin
       //add a entry with type 255
       mainform.AddAutoAssembleScript(assemblescreen.text);
@@ -1116,7 +1139,7 @@ begin
       disablescript.Add(x);
     end;
 
-    freemem(originalcodebuffer);
+    freememandnil(originalcodebuffer);
     originalcodebuffer:=nil;
 
 
@@ -1372,7 +1395,36 @@ begin
 end;
 
 procedure TfrmAutoInject.FormShow(Sender: TObject);
+var
+  reg: Tregistry;
 begin
+  if shownonce=false then
+  begin
+    if overridefont<>nil then
+      assemblescreen.Font.assign(overridefont)
+    else
+      assemblescreen.Font.Size:=10;
+
+    reg:=tregistry.create;
+    try
+      if reg.OpenKey('\Software\Cheat Engine\Auto Assembler\',false) then
+      begin
+        if reg.valueexists('Font.name') then
+          assemblescreen.Font.Name:=reg.readstring('Font.name');
+
+        if reg.valueexists('Font.size') then
+          assemblescreen.Font.size:=reg.ReadInteger('Font.size');
+
+        if reg.valueexists('Font.quality') then
+          assemblescreen.Font.quality:=TFontQuality(reg.ReadInteger('Font.quality'));
+      end;
+    finally
+      reg.free;
+    end;
+
+    shownonce:=true;
+  end;
+
   if editscript then
     button1.Caption:=strOK;
 
@@ -1682,6 +1734,8 @@ var
   i: integer;
   x: array of integer;
   reg: tregistry;
+
+  fq: TFontQuality;
 begin
 
 
@@ -1714,7 +1768,16 @@ begin
   assemblescreen:=TSynEdit.Create(self);
   assemblescreen.Highlighter:=AAHighlighter;
   assemblescreen.Options:=SYNEDIT_DEFAULT_OPTIONS - [eoScrollPastEol]+[eoTabIndent]+[eoKeepCaretX];
-  assemblescreen.Font.Quality:=fqDefault;
+  fq:=assemblescreen.Font.Quality;
+  if not (fq in [fqCleartypeNatural, fqDefault]) then
+    assemblescreen.Font.quality:=fqDefault;
+
+ { if overridefont<>nil then
+    assemblescreen.Font.assign(overridefont)
+  else
+    assemblescreen.Font.Size:=10;    }
+
+  //assemblescreen.Font.Quality:=fqDefault;
   assemblescreen.WantTabs:=true;
   assemblescreen.TabWidth:=4;
 
@@ -1740,6 +1803,7 @@ begin
 
   assemblescreen.OnChange:=assemblescreenchange;
 
+
   setlength(x,0);
   loadformposition(self,x);
 
@@ -1747,15 +1811,6 @@ begin
   try
     if reg.OpenKey('\Software\Cheat Engine\Auto Assembler\',false) then
     begin
-      if reg.valueexists('Font.name') then
-        assemblescreen.Font.Name:=reg.readstring('Font.name');
-
-      if reg.valueexists('Font.size') then
-        assemblescreen.Font.size:=reg.ReadInteger('Font.size');
-
-      if reg.valueexists('Font.quality') then
-        assemblescreen.Font.quality:=TFontQuality(reg.ReadInteger('Font.quality'));
-
       if reg.valueexists('Show Line Numbers') then
         assemblescreen.Gutter.linenumberpart.visible:=reg.ReadBool('Show Line Numbers');
 
@@ -1797,9 +1852,9 @@ begin
   Syntaxhighlighting1.checked:=not Syntaxhighlighting1.checked;
   if Syntaxhighlighting1.checked then //enable
   begin
-    if fluamode then
+    if ScriptMode=smLua then
       assemblescreen.Highlighter:=LuaHighlighter
-    else
+    else if ScriptMode=smAutoAssembler then
       assemblescreen.Highlighter:=AAHighlighter
   end
   else //disabl
@@ -2089,7 +2144,7 @@ procedure TfrmAutoInject.FormDestroy(Sender: TObject);
 begin
   //if editscript or editscript2 then
   begin
-    saveformposition(self,[]);
+    saveformposition(self);
 
   end;
 end;
@@ -2947,10 +3002,15 @@ var
 begin
   setlength(result, size);
 
-  pos1:=0;
+
+  pos1:=Disassembler.LastDisassembleData.prefixsize;
   for i:=0 to Disassembler.LastDisassembleData.SeperatorCount-1 do
   begin
     pos2:=Disassembler.LastDisassembleData.Seperators[i];
+    if pos2>size then
+      pos2:=size;
+
+
     mask:=(pos2<=size) and (pos2-pos1=4) and (abs(pinteger(@Disassembler.LastDisassembleData.Bytes[pos1])^)>=$10000); //value is bigger than 65535 (positive and negative)
 
     for index := pos1 to pos2-1 do

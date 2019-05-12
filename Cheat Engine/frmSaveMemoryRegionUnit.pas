@@ -5,7 +5,7 @@ unit frmSaveMemoryRegionUnit;
 interface
 
 uses
-  LCLIntf, Messages, SysUtils, Classes, Graphics, Controls, Forms,
+  LCLIntf, Messages, SysUtils, Classes, Graphics, Controls, Forms, symbolhandler,
   Dialogs, StdCtrls, NewKernelHandler, CEFuncProc, ExtCtrls, LResources, Menus;
 
 type
@@ -13,6 +13,7 @@ type
   { TfrmSaveMemoryRegion }
 
   TfrmSaveMemoryRegion = class(TForm)
+    smrImageList: TImageList;
     miClearList: TMenuItem;
     Panel1: TPanel;
     Panel2: TPanel;
@@ -30,7 +31,7 @@ type
     editFrom: TEdit;
     editTo: TEdit;
     Button3: TButton;
-    procedure FormClose(Sender: TObject; var Action: TCloseAction);
+    procedure Button2Click(Sender: TObject);
     procedure Button1Click(Sender: TObject);
     procedure DontIncludeClick(Sender: TObject);
     procedure Button3Click(Sender: TObject);
@@ -71,10 +72,9 @@ begin
   inherited create;
 end;
 
-procedure TfrmSaveMemoryRegion.FormClose(Sender: TObject;
-  var Action: TCloseAction);
+procedure TfrmSaveMemoryRegion.Button2Click(Sender: TObject);
 begin
-
+  close;
 end;
 
 procedure TfrmSaveMemoryRegion.Button1Click(Sender: TObject);
@@ -108,17 +108,20 @@ begin
     size:=toaddress-fromaddress+1;
     getmem(buf[i],size);
 
-    if (not readprocessmemory(processhandle,pointer(ptrUint(fromaddress)),buf[i],size,temp)) or (temp<>size) then
+    if (not readprocessmemory(processhandle,pointer(ptrUint(fromaddress)),buf[i],size,temp)) then
     begin
-      setlength(unreadable,length(unreadable)+1);
-      unreadable[length(unreadable)-1]:=i;
+      if (temp<>size) then
+      begin
+        setlength(unreadable,length(unreadable)+1);
+        unreadable[length(unreadable)-1]:=i;
+      end;
     end;
   end;
 
   if length(unreadable)>0 then
   begin
     for i:=0 to length(buf)-1 do
-      freemem(buf[i]);
+      freememandnil(buf[i]);
 
     s:=rsNotAllTheMemoryWasReadableIn;
     for i:=0 to length(unreadable)-1 do
@@ -150,7 +153,7 @@ begin
           f.WriteBuffer(size,4);
         end;
         f.WriteBuffer(buf[i]^,size);
-        freemem(buf[i]);
+        freememandnil(buf[i]);
       end;
 
       modalresult:=mrOK;
@@ -174,26 +177,24 @@ end;
 
 procedure TfrmSaveMemoryRegion.Button3Click(Sender: TObject);
 var fromaddress,toaddress:qword;
-    temp:qword;
 begin
   try
-    fromaddress:=StrToQWordEx('$'+editFrom.Text);
+    fromaddress:=StrToQWordEx('$'+editfrom.Text);
   except
-    raise exception.Create(Format(rsIsNotAValidAddress, [editfrom.Text]));
+    fromaddress:=symhandler.getAddressFromName(editfrom.Text);
   end;
 
   try
-    toaddress:=StrToQWordEx('$'+editto.Text);
+    toaddress:=StrToQWordEx('$'+editto.text);
   except
-    raise exception.Create(Format(rsIsNotAValidAddress, [editto.Text]));
+    toaddress:=symhandler.getAddressFromName(editto.text);
   end;
 
-
-  if toaddress<fromaddress then
-  begin
-    temp:=fromaddress;
-    fromaddress:=toaddress;
-    toaddress:=temp;
+  if fromaddress>toaddress then
+  begin  //xor swap
+    fromaddress:=fromaddress xor toaddress;
+    toaddress:=toaddress xor fromaddress;
+    fromaddress:=fromaddress xor toaddress;
   end;
 
   lbregions.Items.AddObject(inttohex(fromaddress,8)+'-'+inttohex(toaddress,8),tregion.Create(fromaddress,toaddress));

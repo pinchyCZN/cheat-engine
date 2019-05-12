@@ -5,6 +5,8 @@ unit JvDesignUtils;
 {$mode objfpc}{$H+}
 {$WARNINGS OFF}
 
+{$warn 5033 off}
+
 interface
 uses
   {$IFDEF UNITVERSIONING}
@@ -410,6 +412,7 @@ end;
 
 { TDesignerDeviceContext }
 
+{$warn 5059 off}
 function TDesignerDeviceContext.GetDCOrigin: TPoint;
 begin
 

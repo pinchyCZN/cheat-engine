@@ -136,6 +136,9 @@ type
 
     wasidle: boolean; //state of isIdle since last call to waitForAndHandleNetworkEvent
 
+    newProgressbarLabel: string;
+    procedure UpdateProgressbarLabel; //synced
+
     procedure InitializeCompressedPtrVariables;
     procedure InitializeEmptyPathQueue; //initializes the arrays inside the pathqueue
 
@@ -271,6 +274,7 @@ type
     startaddress: ptrUint;
     stopaddress: ptrUint;
     progressbar: TProgressbar;
+    progressbarLabel: TLabel;
     sz: integer;
     maxlevel: integer;
     unalligned: boolean;
@@ -323,6 +327,7 @@ type
 
     generatePointermapOnly: boolean;
 
+    negativeOffsets: boolean;
     compressedptr: boolean;
     MaxBitCountModuleOffset: dword;
     MaxBitCountModuleIndex: dword;
@@ -498,6 +503,7 @@ resourcestring
   rsInvalidData = 'invalid data:';
   rsNoUpdateFromTheClientForOver120Sec = 'No update from the client for over 120 seconds';
   rsAllPathsReceived = 'All paths received';
+  rsSavingPointermap = 'Saving pointermap';
 
 //------------------------POINTERLISTLOADER-------------
 procedure TPointerlistloader.execute;
@@ -843,10 +849,11 @@ begin
 
         self.starttime:=GetTickCount64;
 
-
+        sent:=0;
         sent:=0;
         UpdateChildProgress(sent, totalsize);
         //update the child progress
+
 
 
         for i:=0 to length(f)-1 do
@@ -1675,11 +1682,13 @@ begin
 
   listsize:=sizeof(dword)*(maxlevel+1);
   valuelistsize:=sizeof(qword)*(maxlevel+1);
-  offsetcountperlist:=0;
 
+  offsetcountperlist:=maxlevel;
+
+  overflowqueuecs.enter;
   pathqueueCS.enter;
   try
-
+    try
 
     while f.Position<f.Size do
     begin
@@ -1738,7 +1747,14 @@ begin
 
         end else break;
       end;
-
+      except
+        on e: exception do
+        begin
+          OutputDebugString('TPointerscanController.SetupQueueForResume Error:'+e.message);
+          setlength(overflowqueue,0);
+          raise;
+        end;
+      end
     finally
       setlength(overflowqueue, length(overflowqueue)-addedToQueue);
       ReleaseSemaphore(pathqueueSemaphore, addedToQueue, nil);
@@ -1746,6 +1762,7 @@ begin
 
   finally
     pathqueueCS.leave;
+    overflowqueuecs.leave;
     f.free;
   end;
 
@@ -1935,6 +1952,7 @@ begin
           begin
             //if found, find a idle thread and tell it to look for this address starting from level 0 (like normal)
 
+            addedToQueue:=false;
 
             if pathqueuelength<MAXQUEUESIZE-1 then
             begin
@@ -1945,11 +1963,9 @@ begin
                 pathqueue[pathqueuelength].startlevel:=0;
                 pathqueue[pathqueuelength].valuetofind:=currentaddress;
                 inc(pathqueuelength);
+                addedToQueue:=true;
 
                 ReleaseSemaphore(pathqueueSemaphore, 1, nil);
-
-
-
 
               end;
 
@@ -3490,7 +3506,7 @@ begin
       begin
         setlength(pathqueue[i].valuelist, maxlevel+2);
         for j:=0 to maxlevel+1 do
-          pathqueue[i].valuelist[j]:=$cececececececece;
+          pathqueue[i].valuelist[j]:=qword($cececececececece);
       end;
     end;
 
@@ -4373,6 +4389,12 @@ begin
   devnull.free;
 end;
 
+
+procedure TPointerscanController.UpdateProgressbarLabel;
+begin
+  progressbarLabel.caption:=newProgressbarLabel;
+end;
+
 procedure TPointerscanController.execute;
 var
     i,j: integer;
@@ -4486,7 +4508,7 @@ begin
 
 
         progressbar.position:=100;
-        //sleep(10000);
+
 
 
 
@@ -4528,6 +4550,10 @@ begin
       else
         LoadedPointermapFilename:=filename+'.scandata';
 
+
+      progressbar.Position:=99;
+      newProgressbarLabel:=rsSavingPointermap;
+      synchronize(UpdateProgressbarLabel);
 
       f:=tfilestream.create(LoadedPointermapFilename, fmCreate);
       cs:=Tcompressionstream.create(clfastest, f);
@@ -4767,7 +4793,7 @@ begin
     name[namelength]:=#0;
     msg.publicname:=name;
   finally
-    freemem(name);
+    FreeMemAndNil(name);
   end;
 
   receive(sockethandle, @msg.scannerid, sizeof(msg.scannerid));
@@ -5155,6 +5181,7 @@ begin
     NewAffinity:=SetThreadAffinityMask(scanner.Handle, NewAffinity);
   end;
 
+  scanner.NegativeOffsets:=negativeOffsets;
   scanner.compressedptr:=compressedptr;
   scanner.MaxBitCountModuleIndex:=MaxBitCountModuleIndex;
   scanner.MaxBitCountModuleOffset:=MaxBitCountModuleOffset;

@@ -1,15 +1,14 @@
 object FindWindow: TFindWindow
-  Left = 727
-  Height = 167
-  Top = 389
+  Left = 610
+  Height = 148
+  Top = 375
   Width = 294
   BorderIcons = [biSystemMenu]
   Caption = 'Find'
-  ClientHeight = 167
+  ClientHeight = 148
   ClientWidth = 294
-  OnCreate = FormCreate
+  OnDestroy = FormDestroy
   OnShow = FormShow
-  PopupMode = pmAuto
   Position = poScreenCenter
   LCLVersion = '1.6.4.0'
   object ProgressBar: TProgressBar
@@ -50,7 +49,7 @@ object FindWindow: TFindWindow
       Left = 3
       Height = 13
       Top = 3
-      Width = 27
+      Width = 28
       BorderSpacing.Left = 3
       BorderSpacing.Top = 3
       Caption = 'Type:'
@@ -73,9 +72,9 @@ object FindWindow: TFindWindow
       AnchorSideTop.Control = EditStop
       AnchorSideTop.Side = asrCenter
       AnchorSideRight.Control = EditStop
-      Left = 170
-      Height = 13
-      Top = 40
+      Left = 169
+      Height = 15
+      Top = 44
       Width = 13
       Anchors = [akTop, akRight]
       BorderSpacing.Right = 2
@@ -104,9 +103,7 @@ object FindWindow: TFindWindow
       Width = 109
       BorderSpacing.Left = 2
       BorderSpacing.Right = 2
-      MaxLength = 16
       TabOrder = 0
-      Text = '00400000'
     end
     object EditStop: TEdit
       AnchorSideLeft.Control = editStart
@@ -120,9 +117,7 @@ object FindWindow: TFindWindow
       Width = 109
       Anchors = [akTop, akLeft, akRight]
       BorderSpacing.Top = 2
-      MaxLength = 16
       TabOrder = 1
-      Text = '7FFFFFFF'
     end
     object rbText: TRadioButton
       AnchorSideLeft.Control = Panel1
@@ -165,9 +160,25 @@ object FindWindow: TFindWindow
       TabOrder = 3
     end
   end
-  object btnOK: TButton
-    Left = 40
-    Height = 25
+  end
+  object Panel2: TPanel
+    AnchorSideLeft.Control = Owner
+    AnchorSideLeft.Side = asrCenter
+    AnchorSideTop.Control = Panel1
+    AnchorSideTop.Side = asrBottom
+    Left = 88
+    Height = 29
+    Top = 109
+    Width = 119
+    AutoSize = True
+    BorderSpacing.Top = 8
+    BevelOuter = bvNone
+    ClientHeight = 29
+    ClientWidth = 119
+    TabOrder = 1
+    object btnOK: TButton
+      Left = 2
+      Height = 25
     Top = 136
     Width = 46
     Anchors = [akLeft, akBottom]
@@ -189,7 +200,6 @@ object FindWindow: TFindWindow
     Cancel = True
     Caption = 'Cancel'
     ModalResult = 2
-    OnClick = btnCancelClick
     TabOrder = 4
   end
   object scanvalue: TMemo
@@ -212,11 +222,4 @@ object FindWindow: TFindWindow
     TabOrder = 5
     TabStop = False
   end
-  object Timer1: TTimer
-    Enabled = False
-    Interval = 5
-    OnTimer = Timer1Timer
-    left = 128
-    top = 8
   end
-end

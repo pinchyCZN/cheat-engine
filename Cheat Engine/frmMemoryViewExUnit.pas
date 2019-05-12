@@ -8,7 +8,7 @@ uses
   windows, Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Dialogs,
   ExtCtrls, StdCtrls, ComCtrls, Menus, memdisplay, newkernelhandler, cefuncproc,
   syncobjs, math, savedscanhandler, foundlisthelper, CustomTypeHandler,
-  symbolhandler, inputboxtopunit, commonTypeDefs, GL, GLext, Types;
+  symbolhandler, inputboxtopunit, commonTypeDefs, GL, GLext, Types, DPIHelper;
 
 
 type TMVCompareMethod=(cmOr, cmXor, cmAnd);
@@ -58,9 +58,9 @@ type
     cbAddresslist: TComboBox;
     cbAddresslistOnly: TCheckBox;
     cbColor: TComboBox;
-    cbType: TComboBox;
     cbCompare: TCheckBox;
     cbSavedList: TComboBox;
+    cbType: TComboBox;
     edtAddress: TEdit;
     edtPitch: TEdit;
     Label1: TLabel;
@@ -68,11 +68,13 @@ type
     Label3: TLabel;
     lblZOOM: TLabel;
     lblAddress: TLabel;
+    Panel4: TPanel;
+    Panel5: TPanel;
+    Panel6: TPanel;
     pbMEM: TPaintBox;
     Panel1: TPanel;
     Panel2: TPanel;
     Panel3: TPanel;
-    Panel4: TPanel;
     rbAnd: TRadioButton;
     rbOr: TRadioButton;
     rbXor: TRadioButton;
@@ -97,7 +99,6 @@ type
     procedure FormResize(Sender: TObject);
     procedure FormShow(Sender: TObject);
     procedure Panel1Click(Sender: TObject);
-    procedure Panel3Resize(Sender: TObject);
     procedure pbMEMPaint(Sender: TObject);
     procedure sbVERTChange(Sender: TObject);
     procedure sbVERTKeyDown(Sender: TObject; var Key: Word; Shift: TShiftState);
@@ -429,6 +430,10 @@ end;
 procedure TfrmMemoryViewEx.FormShow(Sender: TObject);
 begin
     MDResize;
+
+    AdjustComboboxSize(cbAddresslist, canvas);
+    AdjustComboboxSize(cbSavedList, canvas);
+
 end;
 
 procedure TfrmMemoryViewEx.FormResize(Sender: TObject);
@@ -489,11 +494,6 @@ begin
   sbVERT.SetFocus;
 end;
 
-procedure TfrmMemoryViewEx.Panel3Resize(Sender: TObject);
-begin
-
-end;
-
 procedure TfrmMemoryViewEx.pbMEMPaint(Sender: TObject);
 var i:integer;
   entry:^TMemEntry;
@@ -548,7 +548,7 @@ begin
     exit;
   x:=$FFFFFFFF;
   if(processhandler.is64Bit)then
-    x:=-1;
+    x:=PtrUInt(-1);
   x:=x div y;
   i:=sbVERT.Position;
   x:=x*i;
@@ -627,10 +627,14 @@ begin
   if(not assigned(mem_map))then
     exit;
 
+
   found:=false;
 
   start_address:=md.getAddressFromScreenPosition(0,0);
   end_address:=md.getAddressFromScreenPosition(0,md.Height-1);
+
+  next_address:=start_address;
+
 
   if(is_range_valid(start_address,end_address) or (mem_map.Count=0))then
   begin
@@ -975,7 +979,7 @@ begin
       exit;
     x:=$FFFFFFFF;
     if(processhandler.is64Bit)then
-      x:=-1;
+      x:=qword(-1);
     y:=val/x;
     y:=Abs(y*sbVERT.Max);
     cb:=sbVERT.OnChange;
@@ -1142,7 +1146,7 @@ begin
     end
     else if(ssAlt in shift)then
         val:=10;
-    val:=val*WheelDelta;
+    val:=val*(-WheelDelta);
     fYpos:=fYpos+val;
   end;
 

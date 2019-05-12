@@ -8,8 +8,8 @@ uses
   cthreads,
   {$ENDIF}{$ENDIF}
   Interfaces, {CEInterfaces,} // this includes the LCL widgetset
-  controls, sysutils, Forms, LazUTF8, dialogs, MainUnit, CEDebugger,
-  NewKernelHandler, CEFuncProc, ProcessHandlerUnit, symbolhandler,
+  controls, sysutils, Forms, LazUTF8, dialogs, SynCompletion, MainUnit,
+  CEDebugger, NewKernelHandler, CEFuncProc, ProcessHandlerUnit, symbolhandler,
   Assemblerunit, hypermode, byteinterpreter, addressparser, autoassembler,
   ProcessWindowUnit, MainUnit2, Filehandler, dbvmPhysicalMemoryHandler,
   frameHotkeyConfigUnit, formsettingsunit, HotkeyHandler, formhotkeyunit,
@@ -92,10 +92,20 @@ uses
   frmEditHistoryUnit, LuaInternet, xinput, frmUltimap2Unit, cpuidunit, libipt,
   DPIHelper, Graphics, fontSaveLoadRegistry, registry, frmWatchlistUnit,
   frmWatchListAddEntryUnit, frmBusyUnit, FindDialogFix, LuaCustomType, LuaSQL,
-  bCrypt, feces, askToRunLuaScript, ContrastColorPicker;
+  bCrypt, feces, askToRunLuaScript, frmDBVMWatchConfigUnit,
+  frmStructuresNewStructureUnit, frmDotNetObjectListUnit, vextypedef,
+  frmFindDialogUnit, frmRearrangeStructureListUnit,
+  autoassemblerexeptionhandler, frmstructurecompareunit, addressedit,
+  frmChangedAddressesCommonalityScannerUnit, ceregistry, LuaRemoteThread,
+  LuaManualModuleLoader, symbolhandlerstructs, frmOpenFileAsProcessDialogUnit,
+  BetterDLLSearchPath, UnexpectedExceptionsHelper, frmExceptionRegionListUnit,
+  frmExceptionIgnoreListUnit, frmcodefilterunit, CodeFilterCallOrAllDialog,
+  frmBranchMapperUnit, frmSymbolEventTakingLongUnit, LuaCheckListBox,
+  textrender, diagramtypes, diagramlink, diagramblock, diagram, LuaDiagram,
+  LuaDiagramBlock, LuaDiagramLink;
 
 {$R cheatengine.res}
-//{$R manifest.res}  //lazarus now has this build in
+{$R manifest.res}  //lazarus now has this build in (but sucks as it explicitly turns of dpi aware)
 //{$R Sounds.rc}
 //{$R images.rc}
 {$R images.res}
@@ -215,26 +225,36 @@ type TFormFucker=class
     procedure addFormEvent(Sender: TObject; Form: TCustomForm);
 end;
 
-var overridefont: TFont;
+
 procedure TFormFucker.addFormEvent(Sender: TObject; Form: TCustomForm);
 begin
   //fuuuuucking time
   if (form<>nil) and (overridefont<>nil) then
+  begin
+    if (form is TsynCompletionForm)=false then   //dus nut wurk with this
     form.Font:=overridefont;
+  end;
 
 
 end;
+
 
 var
   i: integer;
 
   ff: TFormFucker;
   r: TRegistry;
+
+  path: string;
 begin
-  Application.Title:='Cheat Engine 6.7';
+  Application.Title:='Cheat Engine 6.8.x';
   Application.Initialize;
 
   overridefont:=nil;
+
+  getcedir;
+  doTranslation;
+
 
   //first check if this is a trainer.
   istrainer:=false;
@@ -243,6 +263,10 @@ begin
     if pos('.CETRAINER', uppercase(ParamStr(i)))>0 then
     begin
       istrainer:=true; //a trainer could give some extra parameters like dpiaware , but that is fine
+
+      if pos('CET_TRAINER.CETRAINER', uppercase(ParamStr(i)))>0 then
+        isExeTrainer:=true;
+
       break;
     end;
   end;
@@ -289,9 +313,7 @@ begin
     end;
   end;
 
-  getcedir;
 
-  doTranslation;
 
   symhandlerInitialize;
 

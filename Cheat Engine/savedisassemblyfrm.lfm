@@ -10,11 +10,9 @@ object frmSavedisassembly: TfrmSavedisassembly
   ClientWidth = 191
   KeyPreview = True
   OnDestroy = FormDestroy
-  OnKeyDown = FormKeyDown
   OnShow = FormShow
-  PopupMode = pmAuto
   Position = poScreenCenter
-  LCLVersion = '1.6.4.0'
+  LCLVersion = '2.0.0.4'
   object Button1: TButton
     AnchorSideLeft.Control = Owner
     AnchorSideLeft.Side = asrCenter
@@ -132,9 +130,9 @@ object frmSavedisassembly: TfrmSavedisassembly
       AnchorSideTop.Control = Edit2
       AnchorSideTop.Side = asrCenter
       AnchorSideRight.Control = Edit2
-      Left = 10
-      Height = 13
-      Top = 28
+      Left = 15
+      Height = 15
+      Top = 30
       Width = 13
       Anchors = [akTop, akRight]
       Caption = 'To'

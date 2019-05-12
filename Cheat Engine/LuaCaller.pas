@@ -12,7 +12,8 @@ interface
 uses
   Classes, Controls, SysUtils, ceguicomponents, forms, lua, lualib, lauxlib,
   comctrls, StdCtrls, CEFuncProc, typinfo, Graphics, disassembler, LuaDisassembler,
-  LastDisassembleData, Assemblerunit, commonTypeDefs, ExtCtrls, addresslist, MemoryRecordUnit;
+  LastDisassembleData, Assemblerunit, commonTypeDefs, ExtCtrls, addresslist,
+  MemoryRecordUnit, math, diagramblock;
 
 type
   TLuaCaller=class
@@ -70,7 +71,7 @@ type
       function SymbolLookupCallback(s: string): ptruint;
       function StructureNameLookup(var address: ptruint; var name: string): boolean;
 
-      function StructureListCallback(callbackid: integer; list: tstringlist):boolean;
+      function StructureListCallback(callbackid: integer; list: tstringlist; max: integer=-1):boolean;
       function ElementListCallback(moduleid: integer; typeid: integer; list: TStringlist): boolean;
 
       procedure AssemblerEvent(address:qword; instruction: string; var bytes: TAssemblerBytes);
@@ -84,6 +85,10 @@ type
       function GetDisplayValueEvent(mr: TObject; var value: string): boolean;
       procedure MemScanGuiUpdateRoutine(sender: TObject; totaladdressestoscan: qword; currentlyscanned: qword; foundcount: qword);
 
+      procedure HexViewTextRenderEvent(sender: TObject; address: ptruint; var text: string);
+      procedure DrawItemEvent(Control: TWinControl; Index: Integer; ARect: TRect; State: TOwnerDrawState);
+      procedure MenuDrawItemEvent(Sender: TObject; Canvas: TCanvas; ARect: TRect; State: TOwnerDrawState);
+      procedure DBCustomDrawEvent(Sender: TDiagramBlock; const ARect: TRect; beforePaint: boolean; var DefaultDraw: Boolean);
 
       procedure synchronize;
 
@@ -135,7 +140,8 @@ implementation
 
 uses
   luahandler, LuaByteTable, MainUnit, disassemblerviewunit,
-  hexviewunit, d3dhookUnit, luaclass, debuggertypedefinitions, memscan, symbolhandler;
+  hexviewunit, d3dhookUnit, luaclass, debuggertypedefinitions, memscan,
+  symbolhandler, symbolhandlerstructs, menus;
 
 resourcestring
   rsThisTypeOfMethod = 'This type of method:';
@@ -1232,7 +1238,7 @@ begin
   end;
 end;
 
-function TLuaCaller.StructureListCallback(callbackid: integer; list: tstringlist):boolean;
+function TLuaCaller.StructureListCallback(callbackid: integer; list: tstringlist; max: integer=-1):boolean;
 var
   oldstack: integer;
   len: integer;
@@ -1251,11 +1257,15 @@ begin
 
   try
     PushFunction;
-    if lua_pcall(l, 0,1,0)=0 then
+    lua_pushinteger(L,max);
+    if lua_pcall(l, 1,1,0)=0 then
     begin
       if not lua_istable(l,-1) then exit(false);
 
       len:=lua_objlen(l,-1);
+
+
+
       for i:=1 to len do
       begin
         lua_pushinteger(L,i);
@@ -1284,6 +1294,8 @@ begin
           si.callbackid:=callbackid;
           list.AddObject(name,si);
 
+
+          if (max<>-1) and (list.count>=max) then break;
         end else exit(false);
 
         lua_pop(L,1); //pop the table
@@ -1442,6 +1454,80 @@ begin
   end;
 end;
 
+procedure TLuaCaller.HexViewTextRenderEvent(sender: TObject; address: ptruint; var text: string);
+var
+  oldstack: integer;
+begin
+  oldstack:=lua_gettop(Luavm);
+  try
+    pushFunction;
+    luaclass_newClass(LuaVM, sender);
+    lua_pushinteger(LuaVM, address);
+    lua_pushstring(LuaVM, text);
+    lua_pcall(LuaVM, 3,1,0);
+    if lua_isstring(LuaVM,-1) then
+      text:=Lua_ToString(LuaVM,-1);
+  finally
+    lua_settop(LuaVM, oldstack);
+  end;
+end;
+
+procedure TLuaCaller.DrawItemEvent(Control: TWinControl; Index: Integer; ARect: TRect; State: TOwnerDrawState);
+var
+  oldstack: integer;
+  ti: PTypeInfo;
+begin
+  oldstack:=lua_gettop(Luavm);
+  try
+    pushFunction;
+    luaclass_newClass(LuaVM, Control);
+    lua_pushinteger(LuaVM, index);
+    lua_pushrect(LuaVM, arect);
+
+    ti:=typeinfo(TFormState);
+    lua_pushstring(LuaVM, SetToString(ti, integer(state),false));
+    lua_pcall(LuaVM, 4,0,0);
+  finally
+    lua_settop(LuaVM, oldstack);
+  end;
+end;
+
+procedure TLuaCaller.MenuDrawItemEvent(Sender: TObject; Canvas: TCanvas; ARect: TRect; State: TOwnerDrawState);
+var
+  oldstack: integer;
+  ti: PTypeInfo;
+begin
+  oldstack:=lua_gettop(Luavm);
+  try
+    pushFunction;
+    luaclass_newClass(LuaVM, Sender);
+    luaclass_newClass(LuaVM, Canvas);
+    lua_pushrect(LuaVM, arect);
+
+    ti:=typeinfo(TFormState);
+    lua_pushstring(LuaVM, SetToString(ti, integer(state),false));
+    lua_pcall(LuaVM, 4,0,0);
+  finally
+    lua_settop(LuaVM, oldstack);
+  end;
+end;
+
+procedure TLuaCaller.DBCustomDrawEvent(Sender: TDiagramBlock; const ARect: TRect; beforePaint: boolean; var DefaultDraw: Boolean);
+var
+  oldstack: integer;
+begin
+  oldstack:=lua_gettop(Luavm);
+  try
+    pushFunction;
+    luaclass_newClass(LuaVM, Sender);
+    lua_pushrect(LuaVM, ARect);
+    lua_pushboolean(LuaVM,beforePaint);
+    lua_pcall(LuaVM, 3,1,0);
+    DefaultDraw:=lua_toboolean(LuaVM,-1);
+  finally
+    lua_settop(LuaVM, oldstack);
+  end;
+end;
 
 //----------------------------Lua implementation-----------------------------
 function LuaCaller_NotifyEvent(L: PLua_state): integer; cdecl;
@@ -2383,6 +2469,110 @@ begin
     lua_pop(L, lua_gettop(L));
 end;
 
+function LuaCaller_HexViewTextRenderEvent(L: PLua_state): integer; cdecl; //(sender: TObject; address: ptruint; var text: string);
+var
+  sender: TObject;
+  address: ptruint;
+  text: string;
+  m: TMethod;
+begin
+  result:=0;
+  if lua_gettop(L)=3 then
+  begin
+    m.code:=lua_touserdata(L, lua_upvalueindex(1));
+    m.data:=lua_touserdata(L, lua_upvalueindex(2));
+    sender:=lua_ToCEUserData(L, 1);
+    address:=lua_tointeger(L,2);
+    text:=Lua_ToString(L,3);
+
+    THexViewTextRenderEvent(m)(sender, address, text);
+
+    lua_pushstring(L,text);
+    result:=1;
+  end
+  else
+    lua_pop(L, lua_gettop(L));
+end;
+
+function LuaCaller_DrawItemEvent(L: PLua_state): integer; cdecl; //sender, index, rect, state
+var
+  Control: TWinControl;
+  index: ptruint;
+  rect: trect;
+  state: TOwnerDrawState;
+  m: TMethod;
+  ti: PTypeInfo;
+begin
+  result:=0;
+  if lua_gettop(L)=4 then
+  begin
+    m.code:=lua_touserdata(L, lua_upvalueindex(1));
+    m.data:=lua_touserdata(L, lua_upvalueindex(2));
+    control:=lua_ToCEUserData(L, 1);
+    index:=lua_tointeger(L,2);
+    rect:=lua_toRect(L,3);
+
+    ti:=typeinfo(TOwnerDrawState);
+    state:=TOwnerDrawState(StringToSet(ti,Lua_ToString(L,4)));
+
+    TDrawItemEvent(m)(Control, index, rect, state);
+  end
+  else
+    lua_pop(L, lua_gettop(L));
+end;
+
+function LuaCaller_MenuDrawItemEvent(L: PLua_state): integer; cdecl; //sender, canvas, rect, state
+var
+  sender: TObject;
+  canvas: TCanvas;
+  rect: trect;
+  state: TOwnerDrawState;
+  m: TMethod;
+  ti: PTypeInfo;
+begin
+  result:=0;
+  if lua_gettop(L)=4 then
+  begin
+    m.code:=lua_touserdata(L, lua_upvalueindex(1));
+    m.data:=lua_touserdata(L, lua_upvalueindex(2));
+    sender:=lua_ToCEUserData(L, 1);
+    canvas:=lua_ToCEUserData(L, 2);
+    rect:=lua_toRect(L,3);
+
+    ti:=typeinfo(TOwnerDrawState);
+    state:=TOwnerDrawState(StringToSet(ti,Lua_ToString(L,4)));
+
+    TMenuDrawItemEvent(m)(sender, canvas, rect, state);
+  end
+  else
+    lua_pop(L, lua_gettop(L));
+end;
+
+function LuaCaller_DBCustomDrawEvent(L: PLua_state): integer; cdecl; //sender, rect, before
+var
+  sender: TDiagramBlock;
+  rect: trect;
+  before: boolean;
+  m: TMethod;
+  r: boolean;
+begin
+  result:=0;
+  if lua_gettop(L)=3 then
+  begin
+    m.code:=lua_touserdata(L, lua_upvalueindex(1));
+    m.data:=lua_touserdata(L, lua_upvalueindex(2));
+    sender:=lua_ToCEUserData(L, 1);
+    rect:=lua_toRect(L,2);
+    before:=lua_toboolean(L,3);
+    r:=before;
+    TDBCustomDrawEvent(m)(sender, rect, before,r);
+
+    lua_pushboolean(L,r);
+    result:=1;
+  end
+  else
+    lua_pop(L, lua_gettop(L));
+end;
 
 procedure registerLuaCall(typename: string; getmethodprop: lua_CFunction; setmethodprop: pointer; luafunctionheader: string);
 var t: TLuaCallData;
@@ -2443,6 +2633,11 @@ initialization
   registerLuaCall('TGetDisplayValueEvent', LuaCaller_GetDisplayValueEvent, pointer(TLuaCaller.GetDisplayValueEvent),'function %s(memrec, value)'#13#10#13#10'  return false,value'#13#10'end'#13#10);
   registerLuaCall('TMemScanGuiUpdateRoutine', LuaCaller_MemScanGuiUpdateRoutine, pointer(TLuaCaller.MemScanGuiUpdateRoutine),'function %s(Sender, TotalAddressesToScan, CurrentlyScanned, ResultsFound)'#13#10#13#10'end'#13#10);
   registerLuaCall('TProcessOpenedEvent', LuaCaller_ProcessOpenedEvent, pointer(TLuaCaller.ProcessOpenedEvent),'function %s(processid, handle, caption)'#13#10#13#10'end'#13#10);
+  registerLuaCall('THexViewTextRenderEvent', LuaCaller_HexViewTextRenderEvent, pointer(TLuaCaller.HexViewTextRenderEvent),'function %s(sender, address, text)'#13#10#13#10'  return text'#13#10'end'#13#10);
 
+  registerLuaCall('TDrawItemEvent', LuaCaller_DrawItemEvent, pointer(TLuaCaller.DrawItemEvent),'function %s(sender, index, rect, state)'#13#10#13#10'end'#13#10);
+  registerLuaCall('TMenuDrawItemEvent', LuaCaller_MenuDrawItemEvent, pointer(TLuaCaller.MenuDrawItemEvent),'function %s(sender, canvas, rect, state)'#13#10#13#10'end'#13#10);
+
+  registerLuaCall('TDBCustomDrawEvent', LuaCaller_DBCustomDrawEvent, pointer(TLuaCaller.DBCustomDrawEvent),'function %s(sender, rect, beforedraw)'#13#10#13#10'  return text'#13#10'end'#13#10);
 end.
 

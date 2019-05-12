@@ -21,6 +21,7 @@ type
 
   TfrmPEInfo = class(TForm)
     GroupBox2: TGroupBox;
+    peiImageList: TImageList;
     miCopyTab: TMenuItem;
     miCopyEverything: TMenuItem;
     Panel1: TPanel;
@@ -76,7 +77,7 @@ function peinfo_getheadersize(header: pointer): dword;
 
 implementation
 
-uses processhandlerunit, parsers;
+uses processhandlerunit, parsers, DPIHelper;
 
 resourcestring
   rsThisIsNotAValidImage = 'This is not a valid image';
@@ -514,7 +515,7 @@ begin
     else
     begin
       //from a file
-      loadedmodule:=virtualalloc(nil,maxaddress, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+      loadedmodule:=virtualalloc(nil,maxaddress, MEM_COMMIT or MEM_RESERVE, PAGE_EXECUTE_READWRITE);
       if loadedmodule=nil then raise exception.create(rsPEFailureAtAllocationMemory);
       ZeroMemory(loadedmodule,maxaddress);
 
@@ -679,7 +680,7 @@ begin
               begin
                 importaddress:=ptrUint(loadedmodule)+ImageImportDirectory.FirstThunk+8*k;
 
-                if InRangeX(importaddress, ptrUint(loadedmodule), ptrUint(loadedmodule)+memorycopysize) then
+                if InRangeX(importaddress, ptrUint(loadedmodule), ptrUint(loadedmodule)+maxaddress) then
                 begin
 
                   if loaded then
@@ -698,12 +699,16 @@ begin
                   else
                   begin
                     //get the name from the file
-                    tempaddress:=ptrUint(loadedmodule)+pqwordarray(ptrUint(loadedmodule)+ImageImportDirectory.FirstThunk)[k]+2;
-                    if InRangeX(tempaddress, ptruint(loadedmodule), ptruint(loadedmodule)+memorycopysize-100) then
+//                  tempaddress:=ptrUint(loadedmodule)+pqwordarray(ptrUint(loadedmodule)+ImageImportDirectory.FirstThunk)[k]+2;
+                    tempaddress:=ptrUint(loadedmodule)+pqwordarray(ptrUint(loadedmodule)+ImageImportDirectory.characteristicsOrFirstThunk)[k]+2;
+
+                    if InRangeX(tempaddress, ptruint(loadedmodule), ptruint(loadedmodule)+maxaddress-100) then
                     begin
                       setlength(importfunctionname, 100);
                       CopyMemory(@importfunctionname[1], pointer(tempaddress), 99);
                       importfunctionname[99]:=#0;
+                      s:=pchar(@importfunctionname[1]);
+                      importfunctionname:=s;
                     end
                     else
                       importfunctionname:='err';
@@ -858,14 +863,7 @@ begin
 
             end;
 
-            freemem(tempstring);
-
-
-
-
-
-
-
+            freememandnil(tempstring);
           end;
         end;
 
@@ -907,7 +905,7 @@ begin
     f:=tfilestream.Create(opendialog1.filename, fmOpenRead or fmShareDenyNone	);
     try
       if memorycopy<>nil then
-        freemem(memorycopy);
+        freememandnil(memorycopy);
 
       if loadedmodule<>nil then
       begin
@@ -938,10 +936,13 @@ end;
 procedure TfrmPEInfo.FormDestroy(Sender: TObject);
 begin
   if memorycopy<>nil then
-    freemem(memorycopy);
+    freememandnil(memorycopy);
 
   if loadedmodule<>nil then
+  begin
     VirtualFree(loadedmodule,0,MEM_RELEASE);
+    loadedmodule:=nil
+  end;
 end;
 
 procedure TfrmPEInfo.FormClose(Sender: TObject; var Action: TCloseAction);
@@ -1034,6 +1035,8 @@ begin
     modulelist.ItemIndex:=0;
     modulelist.OnClick(modulelist);
   end;
+
+  DPIHelper.AdjustSpeedButtonSize(LoadButton);
 end;
 
 procedure TfrmPEInfo.Button1Click(Sender: TObject);
@@ -1053,12 +1056,12 @@ begin
 
   if loadedmodule<>nil then
   begin
-    virtualfree(loadedmodule,0,MEM_RELEASE	);
+    virtualfree(loadedmodule,0,MEM_RELEASE);
     loadedmodule:=nil;
   end;
 
   if memorycopy<>nil then
-    freemem(memorycopy);
+    freememandnil(memorycopy);
 
   getmem(memorycopy,4096);
   try
@@ -1073,7 +1076,7 @@ begin
     imagesize:=peinfo_getimagesize(memorycopy);
 
   finally
-    freemem(memorycopy);
+    freememandnil(memorycopy);
 
   end;
 

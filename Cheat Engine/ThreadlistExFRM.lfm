@@ -6,11 +6,8 @@ object frmThreadlistEx: TfrmThreadlistEx
   Caption = 'ThreadInfo'
   ClientHeight = 220
   ClientWidth = 272
-  KeyPreview = True
   OnClose = FormClose
-  OnKeyDown = FormKeyDown
-  PopupMode = pmAuto
-  LCLVersion = '1.6.4.0'
+  LCLVersion = '1.6.0.4'
   object TreeView1: TTreeView
     Left = 0
     Height = 189
