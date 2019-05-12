@@ -963,6 +963,18 @@ function mono_class_enumFields(class, includeParents)
   until (classfield==nil) or (classfield==0)
 
   monopipe.unlock()
+  
+  local temp={}
+  local i
+  for i=1,#fields do
+    temp[i]={fields[i].name, fields[i]}
+  end
+  table.sort(temp, function(e1,e2) return string.lower(e1[1]) < string.lower(e2[1]) end)
+
+  fields={}
+  for i=1,#temp do
+    fields[i]=temp[i][2]
+  end  
 
   return fields
 
@@ -1022,7 +1034,7 @@ function mono_class_enumMethods(class, includeParents)
   for i=1,#methods do
     temp[i]={methods[i].name, methods[i]}
   end
-  table.sort(temp, function(e1,e2) return e1[1] < e2[1] end)
+  table.sort(temp, function(e1,e2) return string.lower(e1[1]) < string.lower(e2[1]) end)
 
   methods={}
   for i=1,#temp do
@@ -2240,23 +2252,23 @@ function monoform_EnumClasses(node)
     end
 
     local monoform_class_compare = function (a,b)
-	  a1=string.lower(a.namespace)
-	  b1=string.lower(b.namespace)
-      if a1<b1 then
+	  s1=string.lower(a.namespace)
+	  s2=string.lower(b.namespace)
+      if s1 < s2 then
         return true
-      elseif b1<a1 then
+      elseif s2 < s1 then
         return false
       end
-	  a1=string.lower(a.fqname)
-	  b1=string.lower(b.fqname)
-      if a1<b1 then
+	  s1=string.lower(a.fqname)
+	  s2=string.lower(b.fqname)
+      if s1 < s2 then
         return true
-      elseif b1<a1 then
+      elseif s2 < s1 then
         return false
       end
-	  a1=string.lower(a.class)
-	  b1=string.lower(b.class)
-      return a1<b1
+	  s1=string.lower(a.class)
+	  s2=string.lower(b.class)
+      return s1 < s2
     end
 
     table.sort(classes, monoform_class_compare)
